@@ -1,3 +1,12 @@
+ofono (1.12phablet1) UNRELEASED; urgency=low
+
+  * Initial phablet version, converted to native for
+    easier development of new RIL driver/plugin code.
+    - debian/source/format: changed to 3.0 (native)
+    - .pc: removed
+
+ -- Tony Espy <espy@canonical.com>  Wed, 27 Mar 2013 12:05:27 -0400
+
 ofono (1.12-0ubuntu2b1) raring; urgency=low
 
   * No-change rebuild against libudev1
