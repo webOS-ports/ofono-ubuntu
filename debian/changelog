@@ -61,7 +61,7 @@ ofono (1.12phablet1) UNRELEASED; urgency=low
     - debian/source/format: changed to 3.0 (native)
     - .pc: removed
 
- -- Tony Espy <espy@canonical.com>  Wed, 27 Mar 2013 12:05:27 -0400
+ -- Tony Espy <espy@canonical.com>  Wed, 03 Apr 2013 12:07:03 -0400
 
 ofono (1.12-0ubuntu2b1) raring; urgency=low
 
