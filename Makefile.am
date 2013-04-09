@@ -324,6 +324,13 @@ builtin_sources += drivers/atmodem/atutil.h \
 			drivers/dunmodem/network-registration.c \
 			drivers/dunmodem/gprs.c
 
+builtin_modules += speedupmodem
+builtin_sources += drivers/atmodem/atutil.h \
+			drivers/speedupmodem/speedupmodem.h \
+			drivers/speedupmodem/speedupmodem.c \
+			drivers/speedupmodem/ussd.c
+endif
+
 builtin_modules += hfpmodem
 builtin_sources += drivers/atmodem/atutil.h \
 			drivers/hfpmodem/hfpmodem.h \
@@ -335,13 +342,6 @@ builtin_sources += drivers/atmodem/atutil.h \
 			drivers/hfpmodem/call-volume.c \
 			drivers/hfpmodem/devinfo.c \
 			drivers/hfpmodem/handsfree.c
-
-builtin_modules += speedupmodem
-builtin_sources += drivers/atmodem/atutil.h \
-			drivers/speedupmodem/speedupmodem.h \
-			drivers/speedupmodem/speedupmodem.c \
-			drivers/speedupmodem/ussd.c
-endif
 
 if PHONESIM
 builtin_modules += phonesim
@@ -526,7 +526,7 @@ src_ofonod_SOURCES = $(gdbus_sources) $(builtin_sources) src/ofono.ver \
 			src/cdma-sms.c src/private-network.c src/cdma-netreg.c \
 			src/cdma-provision.c src/handsfree.c
 
-src_ofonod_LDADD = $(builtin_libadd) @GLIB_LIBS@ @DBUS_LIBS@ -ldl
+src_ofonod_LDADD = $(builtin_libadd) @GLIB_LIBS@ @DBUS_LIBS@ -ldl -lwaudio
 
 src_ofonod_LDFLAGS = -Wl,--export-dynamic \
 				-Wl,--version-script=$(srcdir)/src/ofono.ver
