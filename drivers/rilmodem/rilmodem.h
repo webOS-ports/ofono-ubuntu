@@ -22,6 +22,10 @@
 
 #include "rilutil.h"
 
+/* Shared constants */
+#define EF_STATUS_INVALIDATED 0
+#define EF_STATUS_VALID 1
+
 extern void ril_devinfo_init(void);
 extern void ril_devinfo_exit(void);
 
@@ -30,6 +34,9 @@ extern void ril_call_volume_exit(void);
 
 extern void ril_voicecall_init(void);
 extern void ril_voicecall_exit(void);
+
+extern void ril_sim_init(void);
+extern void ril_sim_exit(void);
 
 extern void ril_sms_init(void);
 extern void ril_sms_exit(void);

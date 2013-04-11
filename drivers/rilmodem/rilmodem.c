@@ -38,6 +38,7 @@ static int rilmodem_init(void)
 	DBG("");
 
 	ril_devinfo_init();
+	ril_sim_init();
 	ril_voicecall_init();
 	ril_sms_init();
 	ril_netreg_init();
@@ -51,6 +52,7 @@ static void rilmodem_exit(void)
 	DBG("");
 
 	ril_devinfo_exit();
+	ril_sim_init();
 	ril_voicecall_exit();
 	ril_sms_exit();
 	ril_netreg_exit();

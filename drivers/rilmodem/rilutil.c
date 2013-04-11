@@ -215,6 +215,27 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	return l;
 }
 
+char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+				int *sw1, int *sw2,
+				struct ofono_error *error)
+{
+	struct parcel rilp;
+
+	/* Set up Parcel struct for proper parsing */
+	rilp.data = message->buf;
+	rilp.size = message->buf_len;
+	rilp.capacity = message->buf_len;
+	rilp.offset = 0;
+
+	*sw1 = parcel_r_int32(&rilp);
+	*sw2 = parcel_r_int32(&rilp);
+
+	DBG("ril_util_parse_sim_io_rsp: %02x, %02x, %i", (int) *sw1,
+		(int) *sw2, message->buf_len);
+
+	return parcel_r_string(&rilp);
+}
+
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech)
 {
