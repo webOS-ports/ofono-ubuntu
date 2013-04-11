@@ -58,23 +58,12 @@
 
 #define MAX_POWER_ON_RETRIES 5
 
-enum {
-	SIM_STATE_INVALID_OR_LOCKED =	0,
-	SIM_STATE_VALID =		1,
-	SIM_STATE_INVALID_CS =		2,
-	SIM_STATE_INVALID_PS =		3,
-	SIM_STATE_INVALID_PS_AND_CS =	4,
-	SIM_STATE_ROMSIM =		240,
-	SIM_STATE_NOT_EXISTENT =	255,
-};
-
 struct ril_data {
 	const char *ifname;
 	GRil *modem;
-	int sim_state;
 	int power_on_retries;
 
-	ofono_bool_t enabled;
+	ofono_bool_t have_sim;
 	ofono_bool_t online;
 	ofono_bool_t reported;
 };
@@ -86,23 +75,6 @@ static void ril_debug(const char *str, void *user_data)
 	const char *prefix = user_data;
 
 	ofono_info("%s%s", prefix, str);
-}
-
-static void report_powered(struct ofono_modem *modem, struct ril_data *ril,
-				ofono_bool_t powered)
-{
-	if (powered == ril->reported) {
-		DBG("powered == reported; returning");
-		return;
-	}
-
-	DBG("%s", powered ? "Powered on"
-		: ril->enabled ? "Reset"
-		: "Powered off");
-
-	ril->reported = powered;
-	ofono_modem_set_powered(modem, powered);
-
 }
 
 static void power_cb(struct ril_msg *message, gpointer user_data)
@@ -120,9 +92,8 @@ static void power_cb(struct ril_msg *message, gpointer user_data)
 		else
 			ofono_error("Max retries for radio power on exceeded!");
 	} else {
-		DBG("Radio POWER-ON OK, setting modem online.");
-
-		ofono_modem_set_online(modem, TRUE);
+		DBG("Radio POWER-ON OK, calling set_powered(TRUE).");
+		ofono_modem_set_powered(modem, TRUE);
 	}
 }
 
@@ -152,7 +123,9 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_modem *modem = user_data;
 	struct ril_data *ril = ofono_modem_get_data(modem);
 	struct parcel rilp;
-	int card_state, num_apps, pin_state;
+	char *tmp_str;
+	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
+	int app_state, app_type, pin_replaced, pin1_state, pin2_state;
 
 	DBG("");
 
@@ -168,21 +141,48 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 
 	card_state = parcel_r_int32(&rilp);
 	pin_state = parcel_r_int32(&rilp);
-	parcel_r_int32(&rilp); /* ignore: gsm_umts_subscription_app_index */
+	gsm_umts_index = parcel_r_int32(&rilp); 
 	parcel_r_int32(&rilp); /* ignore: cdma_subscription_app_index */
-	parcel_r_int32(&rilp); /* ignore: ims_subscription_app_index */
+	ims_index = parcel_r_int32(&rilp);
 	num_apps = parcel_r_int32(&rilp);
 
-        /* skip AppState array */
+	/* TODO: this may only be useful for Debug info; guard as such? */
+	for (i = 0; i < num_apps; i++) {
+		app_type = parcel_r_int32(&rilp);
+		app_state = parcel_r_int32(&rilp);
+		parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
+		tmp_str = parcel_r_string(&rilp); /* ignore aid_prt for now */
+		tmp_str = parcel_r_string(&rilp);
+		pin_replaced = parcel_r_int32(&rilp);
+		pin1_state = parcel_r_int32(&rilp);
+		pin2_state = parcel_r_int32(&rilp);
+
+		DBG("SIM app type: %s state: %s label: %s",
+			ril_apptype_to_string(app_type),
+			ril_appstate_to_string(app_state),
+			tmp_str);
+
+		DBG("pin_replaced: %d pin1_state: %s pin2_state: %s",
+			pin_replaced,
+			ril_pinstate_to_string(pin1_state),
+			ril_pinstate_to_string(pin2_state));
+	}
 
 	if (card_state == RIL_CARDSTATE_PRESENT) {
+		DBG("Unlocked SIM card found; gsm_umts_index: %d; ims_index: %d; num_apps: %d",
+			gsm_umts_index, ims_index, num_apps);
+
+		/* TODO: add state-to-string function */
+		DBG("Card pinstate is: %d", pin_state);
 
 		/* TODO: check PinState=DISABLED, for now just
 		 * set state to valid... */
-		ril->sim_state = SIM_STATE_VALID;
+		ril->have_sim = TRUE;
 
 		power_on(modem);
 	}
+
+	/* Need to handle emergency calls if SIM !present or locked */
 
 	DBG("card_state: %s (%d) pin_state: %s (%d) num_apps: %d",
 		ril_cardstate_to_string(card_state),
@@ -251,13 +251,16 @@ static void ril_remove(struct ofono_modem *modem)
 static void ril_pre_sim(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
+	struct ofono_sim *sim;
 
 	DBG("(%p) with %s", modem, ril->ifname);
 
+	sim = ofono_sim_create(modem, 0, "rilmodem", ril->modem);
 	ofono_devinfo_create(modem, 0, "rilmodem", ril->modem);
 	ofono_voicecall_create(modem, 0, "rilmodem", ril->modem);
 
-	send_get_sim_status(modem);
+	if (sim && ril->have_sim)
+		ofono_sim_inserted_notify(sim, TRUE);
 }
 
 static void ril_post_sim(struct ofono_modem *modem)
@@ -265,6 +268,14 @@ static void ril_post_sim(struct ofono_modem *modem)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
 	DBG("(%p) with %s", modem, ril->ifname);
+
+	/* TODO: this function should setup:
+	 *  - phonebook
+	 *  - stk ( SIM toolkit )
+	 *  - radio_settings (why?)
+	 *  - sms ( this could go to post_online ); ask ofono upstream...
+	 */
+	ofono_sms_create(modem, 0, "rilmodem", ril->modem);
 }
 
 static void ril_post_online(struct ofono_modem *modem)
@@ -275,7 +286,6 @@ static void ril_post_online(struct ofono_modem *modem)
 
 	ofono_call_volume_create(modem, 0, "rilmodem", ril->modem);
 	ofono_netreg_create(modem, 0, "rilmodem", ril->modem);
-	ofono_sms_create(modem, 0, "rilmodem", ril->modem);
 }
 
 static int ril_enable(struct ofono_modem *modem)
@@ -284,8 +294,7 @@ static int ril_enable(struct ofono_modem *modem)
 
 	DBG("modem=%p with %s", modem, ril ? ril->ifname : NULL);
 
-	ril->enabled = TRUE;
-	ril->sim_state = SIM_STATE_NOT_EXISTENT;
+	ril->have_sim = FALSE;
 
         ril->modem = g_ril_new();
 
@@ -307,7 +316,9 @@ static int ril_enable(struct ofono_modem *modem)
 		g_ril_set_debug(ril->modem, ril_debug, "Device: ");
 	}
 
-        return 0;
+	send_get_sim_status(modem);
+
+        return -EINPROGRESS;
 }
 
 static int ril_disable(struct ofono_modem *modem)
@@ -315,8 +326,6 @@ static int ril_disable(struct ofono_modem *modem)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
 	DBG("modem=%p with %p", modem, ril ? ril->ifname : NULL);
-
-	ril->enabled = FALSE;
 
         return 0;
 }
@@ -365,7 +374,7 @@ static int ril_init(void)
 	 * non-standard ( see udev comment above ).
 	 * usually called by undevng::create_modem
 	 *
-	 * args are name (optional) & type 
+	 * args are name (optional) & type
 	 */
 	modem = ofono_modem_create(NULL, "ril");
 	if (modem == NULL) {
@@ -373,13 +382,29 @@ static int ril_init(void)
 		return -ENODEV;
 	}
 
+	/* TODO: these are both placeholders; we should
+	 * determine if they can be removed.
+	 */
 	ofono_modem_set_string(modem, "Interface", "ttys");
 	ofono_modem_set_integer(modem, "Address", 0);
 
+	/* This causes driver->probe() to be called... */
 	retval = ofono_modem_register(modem);
 	DBG("ofono_modem_register returned: %d", retval);
 
-        /* kickstart the modem */
+        /* kickstart the modem:
+	 * causes core modem code to call
+	 * - set_powered(TRUE) - which in turn
+	 *   calls driver->enable()
+	 *
+	 * - driver->pre_sim()
+	 *
+	 * Could also be done via:
+	 *
+	 * - a DBus call to SetProperties w/"Powered=TRUE" *1
+	 * - sim_state_watch ( handles SIM removal? LOCKED states? **2
+	 * - ofono_modem_set_powered()
+	 */
         ofono_modem_reset(modem);
 
 	return retval;
@@ -393,3 +418,4 @@ static void ril_exit(void)
 
 OFONO_PLUGIN_DEFINE(ril, "RIL modem driver", VERSION,
 			OFONO_PLUGIN_PRIORITY_DEFAULT, ril_init, ril_exit)
+ 
