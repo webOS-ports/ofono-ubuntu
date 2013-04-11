@@ -6,9 +6,12 @@ XSBC-Original-Maintainer: Debian Telepathy maintainers <pkg-telepathy-maintainer
 Uploaders: Jonny Lamb <jonny@debian.org>, Hector Oron <zumbi@debian.org>, Konstantinos Margaritis <markos@debian.org>
 Build-Depends: debhelper (>= 7.0.50~),
                cdbs,
+               dh-autoreconf,
+               libtool,
                libglib2.0-dev (>= 2.22),
                libdbus-glib-1-dev,
                libudev-dev,
+               libwaudio1-dev,
                udev,
                libbluetooth-dev (>= 4.30),
                mobile-broadband-provider-info

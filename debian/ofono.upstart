@@ -6,4 +6,9 @@ stop on stopping dbus
 expect fork
 respawn
 
-exec ofonod
+exec ofonod --noplugin=atmodem
+
+pre-start script
+  sleep 8
+end script
+
