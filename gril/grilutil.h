@@ -32,6 +32,7 @@ extern "C" {
 const char *ril_appstate_to_string(int app_state);
 const char *ril_apptype_to_string(int app_type);
 const char *ril_cardstate_to_string(int card_state);
+const char *ril_error_to_string(int error);
 const char *ril_pinstate_to_string(int pin_state);
 const char *ril_request_id_to_string(int req);
 
