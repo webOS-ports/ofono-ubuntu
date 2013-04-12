@@ -1,3 +1,11 @@
+ofono (1.12phablet2) UNRELEASED; urgency=low
+
+  * [ril/rilmodem] Initial SIM support, includes:
+   - read filesystem support
+   - proper modem initialization
+
+ -- Tony Espy <espy@canonical.com>  Fri, 12 Apr 2013 14:56:01 -0400
+
 ofono (1.12phablet1) UNRELEASED; urgency=low
 
   [ Ricardo Salveti de Araujo ]
