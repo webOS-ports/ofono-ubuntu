@@ -3,7 +3,7 @@
  *  oFono - Open Source Telephony - RIL Modem Support
  *
  *  Copyright (C) 2008-2011  Intel Corporation. All rights reserved.
- *  Copyright (C) 2012 Canonical Ltd.
+ *  Copyright (C) 2012 Canonical, Ltd. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -44,6 +44,9 @@ static int rilmodem_init(void)
 	ril_netreg_init();
 	ril_call_volume_init();
 
+	ril_gprs_init();
+	ril_gprs_context_init();
+
 	return 0;
 }
 
@@ -52,11 +55,13 @@ static void rilmodem_exit(void)
 	DBG("");
 
 	ril_devinfo_exit();
-	ril_sim_init();
+	ril_sim_exit();
 	ril_voicecall_exit();
 	ril_sms_exit();
 	ril_netreg_exit();
 	ril_call_volume_exit();
+	ril_gprs_exit();
+	ril_gprs_context_exit();
 }
 
 OFONO_PLUGIN_DEFINE(rilmodem, "RIL modem driver", VERSION,

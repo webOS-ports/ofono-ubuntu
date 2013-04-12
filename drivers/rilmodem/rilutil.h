@@ -70,8 +70,8 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
 				struct ofono_error *error);
 
-gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
-				int *lac, int *ci, int *tech);
+gboolean ril_util_parse_reg(struct ril_msg *message, gboolean data, int *status,
+				int *lac, int *ci, int *tech, int *max_calls);
 
 gint ril_util_parse_sms_response(struct ril_msg *message);
 

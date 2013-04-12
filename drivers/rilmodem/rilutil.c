@@ -236,11 +236,11 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	return parcel_r_string(&rilp);
 }
 
-gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
-				int *lac, int *ci, int *tech)
+gboolean ril_util_parse_reg(struct ril_msg *message, gboolean data, int *status,
+				int *lac, int *ci, int *tech, int *max_calls)
 {
 	struct parcel rilp;
-	gchar *sstatus, *slac, *sci, *stech;
+	gchar *sstatus, *slac, *sci, *stech, *sreason, *smax;
 
 	/* Set up Parcel struct for proper parsing */
 	rilp.data = message->buf;
@@ -256,9 +256,10 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	slac = parcel_r_string(&rilp);
 	sci = parcel_r_string(&rilp);
 	stech = parcel_r_string(&rilp);
-
-	DBG("RIL reg - status: %s, lac: %s, ci: %s, radio tech: %s",
-				sstatus, slac, sci, stech);
+	sreason = parcel_r_string(&rilp);        /* TODO: different use for CDMA */
+	smax = parcel_r_string(&rilp);           /* TODO: different use for CDMA */
+	DBG("RIL reg - status: %s, lac: %s, ci: %s, radio tech: %s reason: %s max calls: %s",
+		sstatus, slac, sci, stech, sreason, smax);
 
 	if (status)
 		*status = atoi(sstatus);
@@ -302,11 +303,16 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 		}
 	}
 
+	if (max_calls)
+		*max_calls = atoi(smax);
+
 	/* Free our parcel handlers */
 	g_free(sstatus);
 	g_free(slac);
 	g_free(sci);
 	g_free(stech);
+	g_free(sreason);
+	g_free(smax);
 
 	return TRUE;
 }
