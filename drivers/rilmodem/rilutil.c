@@ -36,6 +36,7 @@
 #include "common.h"
 #include "rilutil.h"
 #include "parcel.h"
+#include "util.h"
 
 struct ril_util_sim_state_query {
 	GRil *ril;
@@ -217,9 +218,21 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 
 char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
-				struct ofono_error *error)
+				int *hex_len)
 {
 	struct parcel rilp;
+	char *response = NULL;
+	char *hex_response = NULL;
+
+	/* Minimum length of SIM_IO_v6 is 12:
+	 * sw1 (int32)
+	 * sw2 (int32)
+	 * simResponse (string)
+	 */
+	if (message->buf_len < 12) {
+		DBG("message->buf_len < 12");
+		return FALSE;
+	}
 
 	/* Set up Parcel struct for proper parsing */
 	rilp.data = message->buf;
@@ -230,10 +243,14 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	*sw1 = parcel_r_int32(&rilp);
 	*sw2 = parcel_r_int32(&rilp);
 
-	DBG("ril_util_parse_sim_io_rsp: %02x, %02x, %i", (int) *sw1,
-		(int) *sw2, message->buf_len);
+	response = parcel_r_string(&rilp);
+	if (response) {
+		hex_response = (char *) decode_hex((const char *) response, strlen(response),
+							hex_len, -1);
+		g_free(response);
+	}
 
-	return parcel_r_string(&rilp);
+	return hex_response;
 }
 
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,

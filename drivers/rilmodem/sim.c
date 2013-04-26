@@ -43,6 +43,13 @@
 
 #include "rilmodem.h"
 
+/* Based on ../drivers/atmodem/sim.c.
+ *
+ * TODO:
+ * 1. Defines constants for hex literals
+ * 2. Document P1-P3 usage (+CSRM)
+ */
+
 /* Commands defined for TS 27.007 +CRSM */
 #define CMD_READ_BINARY   176
 #define CMD_READ_RECORD   178
@@ -57,16 +64,24 @@ struct sim_data {
 	GRil *ril;
 };
 
+static void sim_debug(const gchar *str, gpointer user_data)
+{
+	const char *prefix = user_data;
+
+	ofono_info("%s%s", prefix, str);
+}
+
 static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
-	struct ofono_error error;
 	ofono_sim_file_info_cb_t cb = cbd->cb;
+	struct ofono_error error;
 	gboolean ok = FALSE;
-	int sw1, sw2, flen, rlen, str;
-	unsigned char *response;
-	unsigned char access[3];
-	unsigned char file_status;
+	int sw1 = 0, sw2 = 0, response_len = 0;
+	int flen = 0, rlen = 0, str = 0;
+	guchar *response = NULL;
+	guchar access[3] = { 0x00, 0x00, 0x00 };
+	guchar file_status = 0x01;
 
 	DBG("");
 
@@ -75,55 +90,56 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	} else {
 		DBG("Reply failure: %s", ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
-		cb(&error, -1, -1, -1, NULL, EF_STATUS_INVALIDATED, cbd->data);
-		return;
+		goto error;
 	}
 
-	response = (guchar *) ril_util_parse_sim_io_rsp(message, &sw1, &sw2,
-							&error);
+	if ((response =
+		ril_util_parse_sim_io_rsp(message, &sw1, &sw2, &response_len)) == NULL) {
+		DBG("Can't parse SIM IO response from RILD");
+		decode_ril_error(&error, "FAIL");
+		goto error;
+	}
 
-	/* Based on atmodem SIM code. */
 	if ((sw1 != 0x90 && sw1 != 0x91 && sw1 != 0x92 && sw1 != 0x9f) ||
-			(sw1 == 0x90 && sw2 != 0x00)) {
+		(sw1 == 0x90 && sw2 != 0x00)) {
 		DBG("Error reply, invalid values: sw1: %02x sw2: %02x", sw1, sw2);
 		memset(&error, 0, sizeof(error));
+
+		/* TODO: fix decode_ril_error to take type & error */
 
 		error.type = OFONO_ERROR_TYPE_SIM;
 		error.error = (sw1 << 8) | sw2;
 
-		if (response)
-			g_free(response);
-
-		cb(&error, -1, -1, -1, NULL, EF_STATUS_INVALIDATED, cbd->data);
-		return;
+		goto error;
 	}
 
-	/* TODO: define constant for 0x62 */
+	if (response_len) {
+		g_ril_util_debug_hexdump(FALSE, response, response_len,
+						sim_debug, "sim response: ");
 
-	if (response) {
 		if (response[0] == 0x62) {
-			ok = sim_parse_3g_get_response(response, strlen((gchar *) response), &flen, &rlen,
-							&str, access, NULL);
+			ok = sim_parse_3g_get_response(response, response_len,
+							&flen, &rlen, &str, access, NULL);
 
 			file_status = EF_STATUS_VALID;
 		} else
-			ok = sim_parse_2g_get_response(response, strlen((gchar *) response), &flen, &rlen,
-							&str, access, &file_status);
-
-		g_free(response);
+			ok = sim_parse_2g_get_response(response, response_len,
+							&flen, &rlen, &str, access, &file_status);
 	}
 
-	if (!ok)
+	if (!ok) {
+		DBG("parse response failed");
+		decode_ril_error(&error, "FAIL");
 		goto error;
+	}
 
-	DBG("response OK; invoking cb - flen: %i, str: %i rlen: %i ", flen, str, rlen);
 	cb(&error, flen, str, rlen, access, file_status, cbd->data);
+	g_free(response);
 	return;
 
 error:
-	DBG("response !OK; %s: ", response);
-	CALLBACK_WITH_FAILURE(cb, -1, -1, -1, NULL,
-				EF_STATUS_INVALIDATED, cbd->data);
+	cb(&error, -1, -1, -1, NULL, EF_STATUS_INVALIDATED, cbd->data);
+	g_free(response);
 }
 
 static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
@@ -138,25 +154,14 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 
 	DBG("fileid: %s", sim_fileid_to_string(fileid));
 
-	/*
-	 * snprintf(buf, sizeof(buf), "AT+CRSM=192,%i", fileid);
-	 *
-	 * AT+CRSM=192,%i  == Restricted SIM Access::GET RESPONSE
-	 * AT+CSIM         == Generic SIM access
-	 */
-
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
-
-	/* pathid */
 	parcel_w_string(&rilp, path);
-
 	parcel_w_int32(&rilp, 0);   /* P1 */
 	parcel_w_int32(&rilp, 0);   /* P2 */
 	parcel_w_int32(&rilp, 255); /* P3 - max length */
 
-	/* send REQUEST to RIL */
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
 				rilp.data,
@@ -175,36 +180,33 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
-	struct ofono_error error;
 	ofono_sim_read_cb_t cb = cbd->cb;
-	int sw1, sw2;
-	unsigned char *response;
+	struct ofono_error error;
+	int sw1 = 0, sw2 = 0, response_len = 0;
+	guchar *response = NULL;
 
 	DBG("");
 
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
-
-		/* TODO: can extra data be included in &error? */
-		decode_ril_error(&error, "FAIL");
-		cb(&error, NULL, 0, cbd->data);
-		return;
+		DBG("RILD reply failure: %s", ril_error_to_string(message->error));
+		goto error;
 	}
 
-	response = (guchar *) ril_util_parse_sim_io_rsp(message, &sw1, &sw2,
-							&error);
-
-	if (response == NULL) {
+	if ((response =
+		ril_util_parse_sim_io_rsp(message, &sw1, &sw2, &response_len)) == NULL) {
 		DBG("Error parsing IO response");
-		decode_ril_error(&error, "FAIL");
-		cb(&error, NULL, 0, cbd->data);
-		return;
+		goto error;
 	}
 
-	cb(&error, response, strlen((gchar *) response), cbd->data);
+	cb(&error, response, response_len, cbd->data);
 	g_free(response);
+	return;
+
+error:
+	decode_ril_error(&error, "FAIL");
+	cb(&error, NULL, 0, cbd->data);
 }
 
 static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
@@ -219,19 +221,13 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 
 	DBG("fileid: %s", sim_fileid_to_string(fileid));
 
-	/* snprintf(buf, sizeof(buf), "AT+CRSM=176,%i,%i,%i,%i", fileid,
-	   start >> 8, start & 0xff, length); */
-
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_BINARY);
 	parcel_w_int32(&rilp, fileid);
-
-	/* pathid */
 	parcel_w_string(&rilp, path);
-
-	parcel_w_int32(&rilp, (start >> 8));   /* P1 */
+	parcel_w_int32(&rilp, (start >> 8));     /* P1 */
 	parcel_w_int32(&rilp, (start & 0xff));   /* P2 */
-	parcel_w_int32(&rilp, length); /* P3 - max length */
+	parcel_w_int32(&rilp, length);           /* P3 - max length */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
@@ -257,19 +253,14 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	int ret;
 
 	DBG("fileid: %s", sim_fileid_to_string(fileid));
-        /* snprintf(buf, sizeof(buf), "AT+CRSM=178,%i,%i,4,%i", fileid,
-	   record, length); */
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_RECORD);
 	parcel_w_int32(&rilp, fileid);
-
-	/* pathid */
 	parcel_w_string(&rilp, path);
-
 	parcel_w_int32(&rilp, record);   /* P1 */
-	parcel_w_int32(&rilp, 4);   /* P2 */
-	parcel_w_int32(&rilp, length); /* P3 - max length */
+	parcel_w_int32(&rilp, 4);        /* P2 */
+	parcel_w_int32(&rilp, length);   /* P3 - max length */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
@@ -339,7 +330,6 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	parcel_free(&rilp);
 
 	if (ret <= 0) {
-		DBG("g_ril_send failed...");
 		g_free(cbd);
 		CALLBACK_WITH_FAILURE(cb, NULL, data);
 	}
@@ -403,19 +393,7 @@ static struct ofono_sim_driver driver = {
 	.read_file_transparent	= ril_sim_read_binary,
 	.read_file_linear	= ril_sim_read_record,
 	.read_file_cyclic	= ril_sim_read_record,
-/*	.write_file_transparent	= ril_sim_update_binary,
- *	.write_file_linear	= ril_sim_update_record,
- *	.write_file_cyclic	= ril_sim_update_cyclic,
- */
  	.read_imsi		= ril_read_imsi,
-/*	.query_passwd_state	= at_pin_query,
- *	.query_pin_retries	= at_pin_retries_query,
- *	.send_passwd		= at_pin_send,
- *	.reset_passwd		= at_pin_send_puk,
- *	.lock			= at_pin_enable,
- *	.change_passwd		= at_change_passwd,
- *	.query_locked		= at_pin_query_enabled,
- */
 };
 
 void ril_sim_init(void)

@@ -65,11 +65,9 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
 GSList *ril_util_parse_clcc(struct ril_msg *message);
-
 char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
-				struct ofono_error *error);
-
+				int *hex_len);
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech);
 
