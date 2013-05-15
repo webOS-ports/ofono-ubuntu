@@ -36,16 +36,24 @@
 #include <ofono/log.h>
 #include <ofono/modem.h>
 #include <ofono/gprs-context.h>
+#include <ofono/types.h>
 
 #include "gril.h"
 #include "grilutil.h"
-#include "parcel.h"
 
 #include "rilmodem.h"
 
 #define TUN_SYSFS_DIR "/sys/devices/virtual/misc/tun"
 
 #define STATIC_IP_NETMASK "255.255.255.255"
+
+
+#define SETUP_DATA_CALL_PARAMS 8
+
+/* REQUEST_SETUP_DATA_CALL parameter values */
+#define DEFAULT_TETHERING_PROFILE "0"
+#define GSM_UMTS_TECH "1"
+#define CHAP_PAP_OK "3"
 
 enum state {
 	STATE_IDLE,
@@ -65,6 +73,93 @@ struct gprs_context_data {
 	void *cb_data;                                  /* Callback data */
 	unsigned int vendor;
 };
+
+
+static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
+{
+	struct cb_data *cbd = user_data;
+	ofono_gprs_context_cb_t cb = cbd->cb;
+	struct ofono_gprs_context *gc = cbd->user;
+	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
+	struct parcel rilp;
+
+	DBG("");
+	ril_util_init_parcel(message, &rilp);
+
+	/* */
+}
+
+static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
+						const struct ofono_gprs_primary_context *ctx,
+						ofono_gprs_context_cb_t cb, void *data)
+{
+	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
+	struct cb_data *cbd = cb_data_new(cb, data);
+	struct parcel rilp;
+	gchar protocol[1];
+
+	DBG("");
+
+	parcel_init(&rilp);
+	parcel_w_int32(&rilp, SETUP_DATA_CALL_PARAMS);
+	parcel_w_string(&rilp, GSM_UMTS_TECH);  /* RadioTech: hardcoded to GSM/UMTS for now... */
+
+        /* DataProfile:
+	 *
+	 * set to default value (0).  Other possibilities
+	 * are 1 (tethering), and 1000 (OEM base).
+	 *
+	 * TODO: tethering support, this may need to change.
+	 * */
+	parcel_w_string(&rilp, DEFAULT_TETHERING_PROFILE);
+
+	/* APN */
+	parcel_w_string(&rilp, ((struct ofono_gprs_primary_context *) ctx)->apn);
+
+	if (strlen(ctx->username)) {
+		parcel_w_string(&rilp,
+				((struct ofono_gprs_primary_context *) ctx)->username);
+	} else {
+		parcel_w_string(&rilp, NULL);
+	}
+
+	if (strlen(ctx->password)) {
+		parcel_w_string(&rilp,
+				((struct ofono_gprs_primary_context *) ctx)->password);
+	} else {
+		parcel_w_string(&rilp, NULL);
+	}
+
+	/* TODO: review with operators... */
+	parcel_w_string(&rilp, CHAP_PAP_OK); /* Auth type: PAP/CHAP may be performed */
+
+	/* FIXME: review this... */
+	sprintf(protocol, "%d", ctx->proto);
+	parcel_w_string(&rilp, protocol);
+
+	if (g_ril_send(gcd->ril, RIL_REQUEST_SETUP_DATA_CALL,
+			NULL, 0, ril_setup_data_call_cb, cbd, g_free) <= 0) {
+		ofono_error("Send RIL_REQUEST_SETUP_DATA_CALL failed.");
+
+		g_free(cbd);
+		CALLBACK_WITH_FAILURE(cb, data);
+	}
+
+	parcel_free(&rilp);
+}
+
+static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
+						unsigned int id,
+						ofono_gprs_context_cb_t cb, void *data)
+{
+	DBG("");
+}
+
+static void ril_gprs_context_detach_shutdown(struct ofono_gprs_context *gc,
+					unsigned int id)
+{
+	DBG("");
+}
 
 static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 					unsigned int vendor, void *data)
@@ -119,6 +214,9 @@ static struct ofono_gprs_context_driver driver = {
 	.name			= "rilmodem",
 	.probe			= ril_gprs_context_probe,
 	.remove			= ril_gprs_context_remove,
+	.activate_primary       = ril_gprs_context_activate_primary,
+	.deactivate_primary     = ril_gprs_context_deactivate_primary,
+	.detach_shutdown        = ril_gprs_context_detach_shutdown,
 };
 
 void ril_gprs_context_init(void)

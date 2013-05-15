@@ -53,6 +53,7 @@
 #include <ofono/gprs.h>
 #include <ofono/gprs-context.h>
 #include <ofono/audio-settings.h>
+#include <ofono/types.h>
 
 #include "drivers/rilmodem/rilmodem.h"
 
@@ -266,16 +267,27 @@ static void ril_pre_sim(struct ofono_modem *modem)
 static void ril_post_sim(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
+	struct ofono_gprs *gprs;
+	struct ofono_gprs_context *gc;
+
+
 
 	DBG("(%p) with %s", modem, ril->ifname);
 
 	/* TODO: this function should setup:
 	 *  - phonebook
 	 *  - stk ( SIM toolkit )
-	 *  - radio_settings (why?)
-	 *  - sms ( this could go to post_online ); ask ofono upstream...
+	 *  - radio_settings
 	 */
 	ofono_sms_create(modem, 0, "rilmodem", ril->modem);
+
+	gprs = ofono_gprs_create(modem, 0, "rilmodem", ril->modem);
+ 	gc = ofono_gprs_context_create(modem, 0, "rilmodem", ril->modem);
+
+	if (gprs && gc) {
+		DBG("calling gprs_add_context");
+		ofono_gprs_add_context(gprs, gc);
+	}
 }
 
 static void ril_post_online(struct ofono_modem *modem)

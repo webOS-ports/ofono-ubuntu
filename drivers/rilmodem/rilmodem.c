@@ -30,6 +30,7 @@
 #define OFONO_API_SUBJECT_TO_CHANGE
 #include <ofono/plugin.h>
 #include <ofono/log.h>
+#include <ofono/types.h>
 
 #include "rilmodem.h"
 

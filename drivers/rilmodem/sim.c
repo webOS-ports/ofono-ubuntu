@@ -39,7 +39,6 @@
 
 #include "gril.h"
 #include "grilutil.h"
-#include "parcel.h"
 
 #include "rilmodem.h"
 
@@ -150,7 +149,7 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	parcel_w_int32(&rilp, fileid);
 
 	/* pathid */
-	parcel_w_string(&rilp, path);
+	parcel_w_string(&rilp, (char *) path);
 
 	parcel_w_int32(&rilp, 0);   /* P1 */
 	parcel_w_int32(&rilp, 0);   /* P2 */
@@ -227,7 +226,7 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	parcel_w_int32(&rilp, fileid);
 
 	/* pathid */
-	parcel_w_string(&rilp, path);
+	parcel_w_string(&rilp, (char *) path);
 
 	parcel_w_int32(&rilp, (start >> 8));   /* P1 */
 	parcel_w_int32(&rilp, (start & 0xff));   /* P2 */
@@ -265,7 +264,7 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	parcel_w_int32(&rilp, fileid);
 
 	/* pathid */
-	parcel_w_string(&rilp, path);
+	parcel_w_string(&rilp, (char *) path);
 
 	parcel_w_int32(&rilp, record);   /* P1 */
 	parcel_w_int32(&rilp, 4);   /* P2 */

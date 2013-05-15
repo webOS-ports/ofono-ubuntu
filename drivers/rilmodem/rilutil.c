@@ -35,7 +35,6 @@
 
 #include "common.h"
 #include "rilutil.h"
-#include "parcel.h"
 
 struct ril_util_sim_state_query {
 	GRil *ril;
@@ -118,6 +117,15 @@ static gboolean cpin_check(gpointer userdata)
 	return FALSE;
 }
 
+void ril_util_init_parcel(struct ril_msg *message, struct parcel *rilp)
+{
+	/* Set up Parcel struct for proper parsing */
+	rilp->data = message->buf;
+	rilp->size = message->buf_len;
+	rilp->capacity = message->buf_len;
+	rilp->offset = 0;
+}
+
 struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 						guint interval, guint num_times,
 						ril_util_sim_inserted_cb_t cb,
@@ -162,11 +170,7 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	int num, i;
 	gchar *number, *name;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* Number of RIL_Call structs */
 	num = parcel_r_int32(&rilp);
@@ -221,11 +225,7 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 {
 	struct parcel rilp;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	*sw1 = parcel_r_int32(&rilp);
 	*sw2 = parcel_r_int32(&rilp);
@@ -236,29 +236,53 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	return parcel_r_string(&rilp);
 }
 
-gboolean ril_util_parse_reg(struct ril_msg *message, gboolean data, int *status,
+gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech, int *max_calls)
 {
 	struct parcel rilp;
-	gchar *sstatus, *slac, *sci, *stech, *sreason, *smax;
+	int tmp;
+	gchar *sstatus = NULL, *slac = NULL, *sci = NULL;
+	gchar *stech = NULL, *sreason = NULL, *smax = NULL;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
-	/* Size of char ** */
-	if (parcel_r_int32(&rilp) == 0)
+	/* Size of response string array
+	 *
+	 * Should be:
+	 *   >= 4 for VOICE_REG reply
+	 *   >= 5 for DATA_REG reply
+	 */
+	if ((tmp = parcel_r_int32(&rilp)) < 4) {
+		DBG("Size of response array is too small: %d", tmp);
 		return FALSE;
+	}
+
+	DBG("size of response array is: %d", tmp);
 
 	sstatus = parcel_r_string(&rilp);
 	slac = parcel_r_string(&rilp);
 	sci = parcel_r_string(&rilp);
 	stech = parcel_r_string(&rilp);
-	sreason = parcel_r_string(&rilp);        /* TODO: different use for CDMA */
-	smax = parcel_r_string(&rilp);           /* TODO: different use for CDMA */
-	DBG("RIL reg - status: %s, lac: %s, ci: %s, radio tech: %s reason: %s max calls: %s",
+
+	tmp -= 4;
+
+	/* FIXME - RIL is only returning the first four strings
+	 * for both VOICE and DATA REGISTRATION requests.
+	 */
+	if (tmp--) {
+		DBG("reading reason...");
+		sreason = parcel_r_string(&rilp);        /* TODO: different use for CDMA */
+
+		if (tmp--) {
+			DBG("reading max cids");
+			smax = parcel_r_string(&rilp);           /* TODO: different use for CDMA */
+
+			if (smax && max_calls)
+				*max_calls = atoi(smax);
+		}
+	}
+
+	DBG("status: %s, lac: %s, ci: %s, radio tech: %s reason: %s max calls: %s",
 		sstatus, slac, sci, stech, sreason, smax);
 
 	if (status)
@@ -303,9 +327,6 @@ gboolean ril_util_parse_reg(struct ril_msg *message, gboolean data, int *status,
 		}
 	}
 
-	if (max_calls)
-		*max_calls = atoi(smax);
-
 	/* Free our parcel handlers */
 	g_free(sstatus);
 	g_free(slac);
@@ -324,10 +345,7 @@ gint ril_util_parse_sms_response(struct ril_msg *message)
 	char *ack_pdu;
 
 	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* TP-Message-Reference for GSM/
 	 * BearerData MessageId for CDMA
@@ -348,10 +366,7 @@ gint ril_util_get_signal(struct ril_msg *message)
 	int gw_signal, cdma_dbm, evdo_dbm, lte_signal;
 
 	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* RIL_SignalStrength_v6 */
 	/* GW_SignalStrength */

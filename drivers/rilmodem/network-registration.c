@@ -36,10 +36,9 @@
 #include <ofono/modem.h>
 #include <ofono/netreg.h>
 
+#include "common.h"
 #include "gril.h"
 #include "rilmodem.h"
-#include "parcel.h"
-#include "common.h"
 
 struct netreg_data {
 	GRil *ril;
@@ -99,7 +98,7 @@ static void ril_creg_cb(struct ril_msg *message, gpointer user_data)
 
 	decode_ril_error(&error, "OK");
 
-	if (ril_util_parse_reg(message, &status, FALSE,
+	if (ril_util_parse_reg(message, &status,
 				&lac, &ci, &tech, NULL) == FALSE) {
 		CALLBACK_WITH_FAILURE(cb, -1, -1, -1, -1, cbd->data);
 		return;

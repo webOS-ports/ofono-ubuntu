@@ -36,10 +36,10 @@
 #include <ofono/log.h>
 #include <ofono/modem.h>
 #include <ofono/gprs.h>
+#include <ofono/types.h>
 
 #include "gril.h"
 #include "grilutil.h"
-#include "parcel.h"
 #include "common.h"
 #include "rilmodem.h"
 
@@ -50,6 +50,28 @@ struct gprs_data {
 	int tech;
 };
 
+static void ril_gprs_set_attached(struct ofono_gprs *gprs, int attached,
+					ofono_gprs_cb_t cb, void *data)
+{
+	struct cb_data *cbd = cb_data_new(cb, data);
+	struct ofono_error error;
+
+	DBG("");
+
+	decode_ril_error(&error, "OK");
+
+	/* This code should just call the callback with OK, and be done
+	 * there's no explicit RIL command to cause an attach.
+	 *
+	 * The core gprs code calls driver->set_attached() when a netreg
+	 * notificaiton is received and any configured roaming conditions
+	 * are met.
+	 */
+
+	cb(&error, cbd->data);
+	g_free(cbd);
+}
+
 static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
@@ -57,7 +79,8 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_gprs *gprs = cbd->user;
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct ofono_error error;
-	int status, lac, ci, max_cids, tech;
+	int status, lac, ci, tech;
+	int max_cids = 1;
 
 	if (message->error == RIL_E_SUCCESS) {
 		DBG("DATA_REGISTRATION reply - OK");
@@ -71,7 +94,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		return;
 	}
 
-	if (ril_util_parse_reg(message, TRUE, &status,
+	if (ril_util_parse_reg(message, &status,
 				&lac, &ci, &tech, &max_cids) == FALSE) {
 		ofono_error("Failure parsing data registration response.");
 		if (cb)
@@ -85,6 +108,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		max_cids);
 
 	if (gd->max_cids == 0 && cb == NULL) {
+		DBG("Setting max cids to %d", max_cids);
 		gd->max_cids = max_cids;
 		gd->tech = tech;
 		ofono_gprs_set_cid_range(gprs, 1, max_cids);
@@ -117,17 +141,8 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");
 
 		g_free(cbd);
-		CALLBACK_WITH_FAILURE(cb, NULL, data);
+		CALLBACK_WITH_FAILURE(cb, -1, data);
 	}
-}
-
-static gboolean ril_delayed_register(gpointer user_data)
-{
-	struct ofono_gprs *gprs = user_data;
-	ofono_gprs_register(gprs);
-
-
-	return FALSE;
 }
 
 static int ril_gprs_probe(struct ofono_gprs *gprs,
@@ -168,8 +183,8 @@ static struct ofono_gprs_driver driver = {
 	.name			= "rilmodem",
 	.probe			= ril_gprs_probe,
 	.remove			= ril_gprs_remove,
-/*	.set_attached		= ril_gprs_set_attached, */
-/*	.attached_status	= ril_gprs_registration_status, */
+	.set_attached		= ril_gprs_set_attached,
+	.attached_status	= ril_gprs_registration_status,
 };
 
 void ril_gprs_init(void)
