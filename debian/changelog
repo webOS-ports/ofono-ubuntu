@@ -6,38 +6,17 @@ ofono (1.12phablet2) UNRELEASED; urgency=low
 
  -- Tony Espy <espy@canonical.com>  Fri, 12 Apr 2013 14:56:01 -0400
 
-ofono (1.12phablet1) UNRELEASED; urgency=low
+ofono (1.12phablet1) raring; urgency=low
 
   [ Ricardo Salveti de Araujo ]
   * ofono.upstart: not starting with debug by default, not needed anymore
   * drivers/rilmodem/devinfo.c: fake data should just use Fake instead of
     Galaxy Nexus
-
-  [ Tony Espy ]
-  * gril/*, plugins/ril.c, drivers/rilmodem/*: fixed copyright headers,
-    sanitized comments.
-
-  [ Ricardo Salveti de Araujo ]
   * Fixing audio states during and after a call, previously broken with
     JellyBean (LP: #1101339)
-
-  [ Tony Espy ]
-  * Re-named the galaxynexus plugin to ril.
-  * [galaxynexus] Add SIM checking to modem initialization.
-  * [gril] Add ril_request_id_to_string function.
-  * [core] Modify ofono_modem_set_online() to call modem_change_state(),
-    which triggers our new modem initialization logic in galaxynexus'
-    post_online function.
-
-  [ Ricardo Salveti de Araujo ]
   * parcel.c: fixing data padding boundary for parcel_w_string (LP: #1088559)
   * Only setting audio mode in call when actually dialing or answering (to
     allow ringtones at the ubuntu side)
-
-  [ Tony Espy ]
-  * Disable atmodem plugin on starup.
-
-  [ Ricardo Salveti de Araujo ]
   * Adding proper support for network registration and network state changes
   * Support registering for network time update reports
   * Extending network registration to support current operator, list of
@@ -48,28 +27,33 @@ ofono (1.12phablet1) UNRELEASED; urgency=low
   * Tuning start sleep for 8 and running with debug messages enabled
   * Sync ril_delayed_register timeout to 2 for all services in rilmodem
   * Setting up voice state and enabling voice call support at AudioFlinger
-
-  [ Tony Espy ]
-  * Initial version of notification framework for RIL
-    unsolicited events ( signal strength, new sms, ... ).
-  * Support for incoming SMS messages (LP: #1085896).
-
-  [ Ricardo Salveti de Araujo ]
   * Adding support for voice call (LP: #1085893)
   * Adding utils files for parcel and string handling
   * Enable basic support for voice volume (mute/unmute)
 
-  [ Michael Frey ]
-  * debian/ofono.upstart: Fix for hang on shutdown.
-
   [ Tony Espy ]
+  * gril/*, plugins/ril.c, drivers/rilmodem/*: fixed copyright headers,
+    sanitized comments.
+  * Re-named the galaxynexus plugin to ril.
+  * [galaxynexus] Add SIM checking to modem initialization.
+  * [gril] Add ril_request_id_to_string function.
+  * [core] Modify ofono_modem_set_online() to call modem_change_state(),
+    which triggers our new modem initialization logic in galaxynexus'
+    post_online function.
+  * Disable atmodem plugin on starup.
+  * Initial version of notification framework for RIL
+    unsolicited events ( signal strength, new sms, ... ).
+  * Support for incoming SMS messages (LP: #1085896).
   * First hard-coded support for RIL modem on Galaxy Nexus.
   * Initial phablet version, converted to native for
     easier development of new RIL driver/plugin code.
     - debian/source/format: changed to 3.0 (native)
     - .pc: removed
 
- -- Tony Espy <espy@canonical.com>  Wed, 03 Apr 2013 12:07:03 -0400
+  [ Michael Frey ]
+  * debian/ofono.upstart: Fix for hang on shutdown.
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Wed, 10 Apr 2013 22:23:42 -0300
 
 ofono (1.12-0ubuntu2b1) raring; urgency=low
 

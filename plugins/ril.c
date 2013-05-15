@@ -123,74 +123,20 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_modem *modem = user_data;
 	struct ril_data *ril = ofono_modem_get_data(modem);
-	struct parcel rilp;
-	char *tmp_str;
-	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
-	int app_state, app_type, pin_replaced, pin1_state, pin2_state;
 
 	DBG("");
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
-
-        /* 20 is the min length of RIL_CardStatus_v6
-	 * as the AppState array can be 0-len */
-	g_assert(message->buf_len >= 20);
-
-	card_state = parcel_r_int32(&rilp);
-	pin_state = parcel_r_int32(&rilp);
-	gsm_umts_index = parcel_r_int32(&rilp); 
-	parcel_r_int32(&rilp); /* ignore: cdma_subscription_app_index */
-	ims_index = parcel_r_int32(&rilp);
-	num_apps = parcel_r_int32(&rilp);
-
-	/* TODO: this may only be useful for Debug info; guard as such? */
-	for (i = 0; i < num_apps; i++) {
-		app_type = parcel_r_int32(&rilp);
-		app_state = parcel_r_int32(&rilp);
-		parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
-		tmp_str = parcel_r_string(&rilp); /* ignore aid_prt for now */
-		tmp_str = parcel_r_string(&rilp);
-		pin_replaced = parcel_r_int32(&rilp);
-		pin1_state = parcel_r_int32(&rilp);
-		pin2_state = parcel_r_int32(&rilp);
-
-		DBG("SIM app type: %s state: %s label: %s",
-			ril_apptype_to_string(app_type),
-			ril_appstate_to_string(app_state),
-			tmp_str);
-
-		DBG("pin_replaced: %d pin1_state: %s pin2_state: %s",
-			pin_replaced,
-			ril_pinstate_to_string(pin1_state),
-			ril_pinstate_to_string(pin2_state));
-	}
-
-	if (card_state == RIL_CARDSTATE_PRESENT) {
-		DBG("Unlocked SIM card found; gsm_umts_index: %d; ims_index: %d; num_apps: %d",
-			gsm_umts_index, ims_index, num_apps);
-
-		/* TODO: add state-to-string function */
-		DBG("Card pinstate is: %d", pin_state);
+	/* Returns TRUE if cardstate == PRESENT */
+	if (ril_util_parse_sim_status(message, NULL)) {
+		DBG("have_sim = TRUE; powering on modem.");
 
 		/* TODO: check PinState=DISABLED, for now just
 		 * set state to valid... */
 		ril->have_sim = TRUE;
-
 		power_on(modem);
 	}
 
-	/* Need to handle emergency calls if SIM !present or locked */
-
-	DBG("card_state: %s (%d) pin_state: %s (%d) num_apps: %d",
-		ril_cardstate_to_string(card_state),
-		card_state,
-		ril_pinstate_to_string(pin_state),
-		pin_state,
-		num_apps);
+	/* TODO: handle emergency calls if SIM !present or locked */
 }
 
 static int send_get_sim_status(struct ofono_modem *modem)
