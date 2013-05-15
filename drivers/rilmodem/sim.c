@@ -36,11 +36,12 @@
 #include <ofono/modem.h>
 #include <ofono/sim.h>
 #include "simutil.h"
+#include "util.h"
 
 #include "gril.h"
 #include "grilutil.h"
 #include "parcel.h"
-
+#include "ril_constants.h"
 #include "rilmodem.h"
 
 /* Based on ../drivers/atmodem/sim.c.
@@ -51,17 +52,33 @@
  */
 
 /* Commands defined for TS 27.007 +CRSM */
-#define CMD_READ_BINARY   176
-#define CMD_READ_RECORD   178
-#define CMD_GET_RESPONSE  192
-#define CMD_UPDATE_BINARY 214
-#define CMD_UPDATE_RECORD 220
-#define CMD_STATUS        242
-#define CMD_RETRIEVE_DATA 203
-#define CMD_SET_DATA      219
+#define CMD_READ_BINARY   176 /* 0xB0   */
+#define CMD_READ_RECORD   178 /* 0xB2   */
+#define CMD_GET_RESPONSE  192 /* 0xC0   */
+#define CMD_UPDATE_BINARY 214 /* 0xD6   */
+#define CMD_UPDATE_RECORD 220 /* 0xDC   */
+#define CMD_STATUS        242 /* 0xF2   */
+#define CMD_RETRIEVE_DATA 203 /* 0xCB   */
+#define CMD_SET_DATA      219 /* 0xDB   */
 
+/* FID/path of SIM/USIM root directory */
+#define ROOTMF "3F00"
+
+/*
+ * TODO: CDMA/IMS
+ *
+ * This code currently only grabs the AID/application ID from
+ * the gsm_umts application on the SIM card.  This code will
+ * need to be modified for CDMA support, and possibly IMS-based
+ * applications.  In this case, app_id should be changed to an
+ * array or HashTable of app_status structures.
+ *
+ * The same applies to the app_type.
+ */
 struct sim_data {
 	GRil *ril;
+	char *app_id;
+	guint app_type;
 };
 
 static void sim_debug(const gchar *str, gpointer user_data)
@@ -69,6 +86,47 @@ static void sim_debug(const gchar *str, gpointer user_data)
 	const char *prefix = user_data;
 
 	ofono_info("%s%s", prefix, str);
+}
+
+static void set_path(struct sim_data *sd, struct parcel *rilp,
+			const int fileid, const guchar *path,
+			const guint path_len)
+{
+	guchar db_path[6] = { 0x00 };
+	char *hex_path = NULL;
+	int len = 0;
+
+	if (path_len > 0 && path_len < 7) {
+		memcpy(db_path, path, path_len);
+		len = path_len;
+	} else if (sd->app_type == RIL_APPTYPE_USIM) {
+		len = sim_ef_db_get_path_3g(fileid, db_path);
+	} else if (sd->app_type == RIL_APPTYPE_SIM) {
+		len = sim_ef_db_get_path_2g(fileid, db_path);
+	} else {
+		DBG("Unsupported app_type: 0%x", sd->app_type);
+	}
+
+	if (len > 0) {
+		hex_path = encode_hex(db_path, len, 0);
+		parcel_w_string(rilp, (char *) hex_path);
+		DBG("encoded path is: %s", hex_path);
+		g_free(hex_path);
+	} else if (fileid == 0x2FE2 || fileid == 0x2FE0) {
+
+		/*
+		 * Special catch-all for EF_ICCID (unique card ID)
+		 * and EF_PL files which exist in the root directory.
+		 * As the sim_info_cb function may not have yet
+		 * recorded the app_type for the SIM, and the path
+		 * for both files is the same for 2g|3g, just hard-code.
+		 *
+		 * See 'struct ef_db' in:
+		 * ../../src/simutil.c for more details.
+		 */
+		parcel_w_string(rilp, (char *) ROOTMF);
+		DBG("encoded path is: %s", ROOTMF);
+	}
 }
 
 static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
@@ -93,8 +151,11 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if ((response =
-		ril_util_parse_sim_io_rsp(message, &sw1, &sw2, &response_len)) == NULL) {
+	if ((response = (guchar *)
+		ril_util_parse_sim_io_rsp(message,
+						&sw1,
+						&sw2,
+						&response_len)) == NULL) {
 		DBG("Can't parse SIM IO response from RILD");
 		decode_ril_error(&error, "FAIL");
 		goto error;
@@ -152,15 +213,29 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int ret;
 
-	DBG("fileid: %s", sim_fileid_to_string(fileid));
-
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
-	parcel_w_string(&rilp, path);
-	parcel_w_int32(&rilp, 0);   /* P1 */
-	parcel_w_int32(&rilp, 0);   /* P2 */
-	parcel_w_int32(&rilp, 255); /* P3 - max length */
+
+	set_path(sd, &rilp, fileid, path, path_len);
+
+	DBG("fileid: %s (%x)", sim_fileid_to_string(fileid), fileid);
+
+	parcel_w_int32(&rilp, 0);           /* P1 */
+	parcel_w_int32(&rilp, 0);           /* P2 */
+
+	/*
+	 * TODO: review parameters values used by Android.
+	 * The values of P1-P3 in this code were based on
+	 * values used by the atmodem driver impl.
+	 *
+	 * NOTE:
+	 * GET_RESPONSE_EF_SIZE_BYTES == 15; !255
+	 */
+	parcel_w_int32(&rilp, 15);         /* P3 - max length */
+	parcel_w_string(&rilp, NULL);       /* data; only req'd for writes */
+	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
+	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
@@ -194,8 +269,11 @@ static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if ((response =
-		ril_util_parse_sim_io_rsp(message, &sw1, &sw2, &response_len)) == NULL) {
+	if ((response = (guchar *)
+		ril_util_parse_sim_io_rsp(message,
+						&sw1,
+						&sw2,
+						&response_len)) == NULL) {
 		DBG("Error parsing IO response");
 		goto error;
 	}
@@ -219,15 +297,21 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int ret;
 
-	DBG("fileid: %s", sim_fileid_to_string(fileid));
+	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
+		fileid, path);
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_BINARY);
 	parcel_w_int32(&rilp, fileid);
-	parcel_w_string(&rilp, path);
-	parcel_w_int32(&rilp, (start >> 8));     /* P1 */
-	parcel_w_int32(&rilp, (start & 0xff));   /* P2 */
-	parcel_w_int32(&rilp, length);           /* P3 - max length */
+
+	set_path(sd, &rilp, fileid, path, path_len);
+
+	parcel_w_int32(&rilp, (start >> 8));   /* P1 */
+	parcel_w_int32(&rilp, (start & 0xff)); /* P2 */
+	parcel_w_int32(&rilp, length);         /* P3 */
+	parcel_w_string(&rilp, NULL);          /* data; only req'd for writes */
+	parcel_w_string(&rilp, NULL);          /* pin2; only req'd for writes */
+	parcel_w_string(&rilp, sd->app_id);    /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
@@ -252,15 +336,21 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int ret;
 
-	DBG("fileid: %s", sim_fileid_to_string(fileid));
+	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
+		fileid, path);
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_RECORD);
 	parcel_w_int32(&rilp, fileid);
-	parcel_w_string(&rilp, path);
-	parcel_w_int32(&rilp, record);   /* P1 */
-	parcel_w_int32(&rilp, 4);        /* P2 */
-	parcel_w_int32(&rilp, length);   /* P3 - max length */
+
+	set_path(sd, &rilp, fileid, path, path_len);
+
+	parcel_w_int32(&rilp, record);      /* P1 */
+	parcel_w_int32(&rilp, 4);           /* P2 */
+	parcel_w_int32(&rilp, length);      /* P3 */
+	parcel_w_string(&rilp, NULL);       /* data; only req'd for writes */
+	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
+	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
@@ -323,7 +413,8 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	DBG("");
 
 	parcel_init(&rilp);
-	parcel_w_string(&rilp, NULL);
+	parcel_w_int32(&rilp, 1);            /* Number of params */
+	parcel_w_string(&rilp, sd->app_id);  /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_IMSI,
 				rilp.data, rilp.size, ril_imsi_cb, cbd, g_free);
@@ -335,12 +426,42 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	}
 }
 
+static void sim_status_cb(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_sim *sim = user_data;
+	struct sim_data *sd = ofono_sim_get_data(sim);
+	struct sim_app app;
+
+	DBG("");
+
+	if (ril_util_parse_sim_status(message, &app)) {
+		if (app.app_id && strlen(app.app_id))
+			sd->app_id = app.app_id;
+
+		if (app.app_type != RIL_APPTYPE_UNKNOWN)
+			sd->app_type = app.app_type;
+	}
+}
+
+static int send_get_sim_status(struct ofono_sim *sim)
+{
+	struct sim_data *sd = ofono_sim_get_data(sim);
+
+	return g_ril_send(sd->ril, RIL_REQUEST_GET_SIM_STATUS,
+				NULL, 0, sim_status_cb, sim, NULL);
+}
+
 static gboolean ril_sim_register(gpointer user)
 {
 	struct ofono_sim *sim = user;
 
 	DBG("");
 
+	send_get_sim_status(sim);
+
+	/* TODO: consider replacing idle call of register
+	 * with call in sim_status_cb().
+	 */
 	ofono_sim_register(sim);
 
 	return FALSE;
@@ -356,6 +477,8 @@ static int ril_sim_probe(struct ofono_sim *sim, unsigned int vendor,
 
 	sd = g_new0(struct sim_data, 1);
 	sd->ril = g_ril_clone(ril);
+	sd->app_id = NULL;
+	sd->app_type = RIL_APPTYPE_UNKNOWN;
 
 	ofono_sim_set_data(sim, sd);
 
@@ -394,6 +517,30 @@ static struct ofono_sim_driver driver = {
 	.read_file_linear	= ril_sim_read_record,
 	.read_file_cyclic	= ril_sim_read_record,
  	.read_imsi		= ril_read_imsi,
+/*
+ * TODO: Implmenting PIN/PUK support requires defining
+ * the following driver methods.
+ *
+ * In the meanwhile, as long as the SIM card is present,
+ * and unlocked, the core SIM code will check for the
+ * presence of query_passwd_state, and if null, then the
+ * function sim_initialize_after_pin() is called.
+ *
+ *	.query_passwd_state	= ril_pin_query,
+ *	.query_pin_retries	= ril_pin_retries_query,
+ *	.send_passwd		= ril_pin_send,
+ *	.reset_passwd		= ril_pin_send_puk,
+ *	.lock			= ril_pin_enable,
+ *	.change_passwd		= ril_change_passwd,
+ *	.query_locked		= ril_pin_query_enabled,
+ *
+ * TODO: Implementing SIM write file IO support requires
+ * the following functions to be defined.
+ *
+ *	.write_file_transparent	= ril_sim_update_binary,
+ *	.write_file_linear	= ril_sim_update_record,
+ *	.write_file_cyclic	= ril_sim_update_cyclic,
+ */
 };
 
 void ril_sim_init(void)
