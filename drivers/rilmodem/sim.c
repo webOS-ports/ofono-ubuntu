@@ -112,8 +112,7 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		parcel_w_string(rilp, (char *) hex_path);
 		DBG("encoded path is: %s", hex_path);
 		g_free(hex_path);
-	} else if (fileid == 0x2FE2 || fileid == 0x2FE0) {
-
+	} else if (fileid == SIM_EF_ICCID_FILEID || fileid == SIM_EFPL_FILEID) {
 		/*
 		 * Special catch-all for EF_ICCID (unique card ID)
 		 * and EF_PL files which exist in the root directory.
@@ -139,7 +138,7 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	int flen = 0, rlen = 0, str = 0;
 	guchar *response = NULL;
 	guchar access[3] = { 0x00, 0x00, 0x00 };
-	guchar file_status = 0x01;
+	guchar file_status = EF_STATUS_VALID;
 
 	DBG("");
 
@@ -181,8 +180,6 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 		if (response[0] == 0x62) {
 			ok = sim_parse_3g_get_response(response, response_len,
 							&flen, &rlen, &str, access, NULL);
-
-			file_status = EF_STATUS_VALID;
 		} else
 			ok = sim_parse_2g_get_response(response, response_len,
 							&flen, &rlen, &str, access, &file_status);
@@ -435,7 +432,7 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	DBG("");
 
 	if (ril_util_parse_sim_status(message, &app)) {
-		if (app.app_id && strlen(app.app_id))
+		if (app.app_id)
 			sd->app_id = app.app_id;
 
 		if (app.app_type != RIL_APPTYPE_UNKNOWN)

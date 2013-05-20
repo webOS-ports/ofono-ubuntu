@@ -226,7 +226,7 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	char *response = NULL;
 	char *hex_response = NULL;
 
-	/* Minimum length of SIM_IO_v6 is 12:
+	/* Minimum length of SIM_IO_Response is 12:
 	 * sw1 (int32)
 	 * sw2 (int32)
 	 * simResponse (string)
@@ -325,7 +325,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 
 		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
 		if (i == gsm_umts_index && app) {
-			if (aid_str && strlen(aid_str)) {
+			if (aid_str) {
 				app->app_id = aid_str;
 				DBG("setting app_id (AID) to: %s", aid_str);
 			}
