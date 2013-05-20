@@ -309,11 +309,15 @@ static int ril_sms_probe(struct ofono_sms *sms, unsigned int vendor,
 
 	ofono_sms_set_data(sms, data);
 
-	/* ofono_devinfo_register() needs to be called after
-	 * the driver has been set in devinfo_create() which
-	 * calls this function.  Most other drivers use a
-	 * callback after getting some return from the modem
-	 * itself...
+        /*
+	 * TODO: analyze if capability check is needed
+	 * and/or timer should be adjusted.
+	 *
+	 * ofono_sms_register() needs to be called after
+	 * the driver has been set in ofono_sms_create(), which
+	 * calls this function.  Most other drivers make some
+	 * kind of capabilities query to the modem, and then
+	 * call register in the callback; we use a timer instead.
 	 */
         g_timeout_add_seconds(2, ril_delayed_register, sms);
 

@@ -120,6 +120,7 @@ builtin_sources += drivers/rilmodem/rilmodem.h \
 			drivers/rilmodem/network-registration.c \
 			drivers/rilmodem/voicecall.c \
 			drivers/rilmodem/call-volume.c \
+			drivers/rilmodem/sim.c \
 			drivers/rilmodem/sms.c \
 			drivers/rilmodem/rilutil.c \
 			drivers/rilmodem/rilutil.h

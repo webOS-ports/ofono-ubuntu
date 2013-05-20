@@ -548,11 +548,15 @@ static int ril_netreg_probe(struct ofono_netreg *netreg, unsigned int vendor,
 	nd->time.utcoff = 0;
 	ofono_netreg_set_data(netreg, nd);
 
-        /* ofono_netreg_register() needs to be called after
-	 * the driver has been set in devinfo_create() which
-	 * calls this function.  Most other drivers use a 
-	 * callback after getting some return from the modem
-	 * itself...
+        /*
+	 * TODO: analyze if capability check is needed
+	 * and/or timer should be adjusted.
+	 *
+	 * ofono_netreg_register() needs to be called after
+	 * the driver has been set in ofono_netreg_create(),
+	 * which calls this function.  Most other drivers make
+	 * some kind of capabilities query to the modem, and then
+	 * call register in the callback; we use a timer instead.
 	 */
         g_timeout_add_seconds(1, ril_delayed_register, netreg);
 

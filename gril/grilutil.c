@@ -88,6 +88,47 @@ const char *ril_cardstate_to_string(int card_state)
 	}
 }
 
+const char *ril_error_to_string(int error)
+{
+
+	switch (error) {
+	case RIL_E_SUCCESS:
+		return "SUCCESS";
+	case RIL_E_RADIO_NOT_AVAILABLE:
+		return "RADIO_NOT_AVAILABLE";
+	case RIL_E_GENERIC_FAILURE:
+		return "GENERIC_FAILURE";
+	case  RIL_E_PASSWORD_INCORRECT:
+		return "PASSWORD_INCORRECT";
+	case  RIL_E_SIM_PIN2:
+		return "SIM_PIN2";
+	case  RIL_E_SIM_PUK2:
+		return "SIM_PUK2";
+	case  RIL_E_REQUEST_NOT_SUPPORTED:
+		return "REQUEST_NOT_SUPPORTED";
+	case  RIL_E_CANCELLED:
+		return "CANCELLED";
+	case  RIL_E_OP_NOT_ALLOWED_DURING_VOICE_CALL:
+		return "OP_NOT_ALLOWED_DURING_VOICE_CALL";
+	case  RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW:
+		return "OP_NOT_ALLOWED_BEFORE_REG_TO_NW";
+	case  RIL_E_SMS_SEND_FAIL_RETRY:
+		return "SMS_SEND_FAIL_RETRY";
+	case  RIL_E_SIM_ABSENT:
+		return "SIM_ABSENT";
+	case  RIL_E_SUBSCRIPTION_NOT_AVAILABLE:
+		return "SUBSCRIPTION_NOT_AVAILABLE";
+	case  RIL_E_MODE_NOT_SUPPORTED:
+		return "MODE_NOT_SUPPORTED";
+	case  RIL_E_FDN_CHECK_FAILURE:
+		return "FDN_CHECK_FAILURE";
+	case  RIL_E_ILLEGAL_SIM_OR_ME:
+		return "ILLEGAL_SIM_OR_ME";
+	default:
+		return "<Unknown Error>";
+	}
+}
+
 const char *ril_pinstate_to_string(int pin_state)
 {
 	switch (pin_state) {

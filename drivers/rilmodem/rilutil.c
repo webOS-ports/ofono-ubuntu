@@ -36,6 +36,9 @@
 #include "common.h"
 #include "rilutil.h"
 #include "parcel.h"
+#include "simutil.h"
+#include "util.h"
+#include "ril_constants.h"
 
 struct ril_util_sim_state_query {
 	GRil *ril;
@@ -213,6 +216,141 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	}
 
 	return l;
+}
+
+char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+				int *sw1, int *sw2,
+				int *hex_len)
+{
+	struct parcel rilp;
+	char *response = NULL;
+	char *hex_response = NULL;
+
+	/* Minimum length of SIM_IO_Response is 12:
+	 * sw1 (int32)
+	 * sw2 (int32)
+	 * simResponse (string)
+	 */
+	if (message->buf_len < 12) {
+		DBG("message->buf_len < 12");
+		return FALSE;
+	}
+
+	/* Set up Parcel struct for proper parsing */
+	rilp.data = message->buf;
+	rilp.size = message->buf_len;
+	rilp.capacity = message->buf_len;
+	rilp.offset = 0;
+
+	*sw1 = parcel_r_int32(&rilp);
+	*sw2 = parcel_r_int32(&rilp);
+
+	response = parcel_r_string(&rilp);
+	if (response) {
+		hex_response = (char *) decode_hex((const char *) response, strlen(response),
+							(long *) hex_len, -1);
+		g_free(response);
+	}
+
+	return hex_response;
+}
+
+gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
+{
+	struct parcel rilp;
+	gboolean result = FALSE;
+	char *aid_str = NULL;
+	char *app_str = NULL;
+	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
+	int app_state, app_type, pin_replaced, pin1_state, pin2_state;
+
+	DBG("");
+
+	if (app) {
+		app->app_type = RIL_APPTYPE_UNKNOWN;
+		app->app_id = NULL;
+	}
+
+	/* Set up Parcel struct for proper parsing */
+	rilp.data = message->buf;
+	rilp.size = message->buf_len;
+	rilp.capacity = message->buf_len;
+	rilp.offset = 0;
+
+	/*
+	 * FIXME: Need to come up with a common scheme for verifying the
+	 * size of RIL message and properly reacting to bad messages.
+	 * This could be a runtime assertion, disconnect, drop/ignore
+	 * the message, ...
+	 *
+	 * Currently if the message is smaller than expected, our parcel
+	 * code happily walks off the end of the buffer and segfaults.
+	 *
+	 * 20 is the min length of RIL_CardStatus_v6 as the AppState
+	 * array can be 0-length.
+	 */
+	if (message->buf_len < 20)
+		goto done;
+
+	card_state = parcel_r_int32(&rilp);
+	pin_state = parcel_r_int32(&rilp);
+	gsm_umts_index = parcel_r_int32(&rilp);
+	parcel_r_int32(&rilp); /* ignore: cdma_subscription_app_index */
+	ims_index = parcel_r_int32(&rilp);
+	num_apps = parcel_r_int32(&rilp);
+
+	for (i = 0; i < num_apps; i++) {
+		app_type = parcel_r_int32(&rilp);
+		app_state = parcel_r_int32(&rilp);
+		parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
+
+		/* TODO: we need a way to instruct parcel to skip
+		 * a string, without allocating memory...
+		 */
+		aid_str = parcel_r_string(&rilp); /* application ID (AID) */
+		app_str = parcel_r_string(&rilp); /* application label */
+
+		pin_replaced = parcel_r_int32(&rilp);
+		pin1_state = parcel_r_int32(&rilp);
+		pin2_state = parcel_r_int32(&rilp);
+
+		DBG("SIM app type: %s state: %s",
+			ril_apptype_to_string(app_type),
+			ril_appstate_to_string(app_state));
+
+		DBG("pin_replaced: %d pin1_state: %s pin2_state: %s",
+			pin_replaced,
+			ril_pinstate_to_string(pin1_state),
+			ril_pinstate_to_string(pin2_state));
+
+		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
+		if (i == gsm_umts_index && app) {
+			if (aid_str) {
+				app->app_id = aid_str;
+				DBG("setting app_id (AID) to: %s", aid_str);
+			}
+
+			app->app_type = app_type;
+		} else
+			g_free(aid_str);
+
+		g_free(app_str);
+	}
+
+	DBG("card_state: %s (%d) pin_state: %s (%d) num_apps: %d",
+		ril_cardstate_to_string(card_state),
+		card_state,
+		ril_pinstate_to_string(pin_state),
+		pin_state,
+		num_apps);
+
+	DBG("gsm_umts_index: %d; ims_index: %d",
+		gsm_umts_index, ims_index);
+
+	if (card_state == RIL_CARDSTATE_PRESENT)
+		result = TRUE;
+done:
+	return result;
 }
 
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,

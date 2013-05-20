@@ -49,6 +49,11 @@ enum at_util_charset {
 	RIL_UTIL_CHARSET_8859_H =	0x10000,
 };
 
+struct sim_app {
+	char *app_id;
+	guint app_type;
+};
+
 typedef void (*ril_util_sim_inserted_cb_t)(gboolean present, void *userdata);
 
 void decode_ril_error(struct ofono_error *error, const char *final);
@@ -65,7 +70,10 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
 GSList *ril_util_parse_clcc(struct ril_msg *message);
-
+char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+				int *sw1, int *sw2,
+				int *hex_len);
+gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app);
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech);
 
