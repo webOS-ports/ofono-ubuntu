@@ -20,7 +20,31 @@
  *
  */
 
+#include <stdio.h>
+
 #include "parcel.h"
+
+/* TODO:
+ *  Guard with #ifdef RIL_DEBUG
+ *  Based on code from:
+ * 
+ *  $AOSP/hardware/ril/libril/ril.cpp
+ */
+#define startRequest           sprintf(printBuf, "(")
+#define closeRequest           sprintf(printBuf, "%s)", printBuf)
+#define printRequest(token, req)           \
+        ofono_debug("[%04d]> %s %s", token, ril_request_id_to_string(req), printBuf)
+
+#define startResponse           sprintf(printBuf, "%s {", printBuf)
+#define closeResponse           sprintf(printBuf, "%s}", printBuf)
+#define printResponse           ofono_debug("%s", printBuf)
+
+#define clearPrintBuf           printBuf[0] = 0
+#define removeLastChar          printBuf[strlen(printBuf)-1] = 0
+#define appendPrintBuf(x...)    sprintf(printBuf, x)
+
+// request, response, and unsolicited msg print macro
+#define PRINTBUF_SIZE 8096
 
 enum ril_util_sms_store {
 	RIL_UTIL_SMS_STORE_SM =	0,
@@ -51,6 +75,18 @@ enum at_util_charset {
 	RIL_UTIL_CHARSET_8859_H =	0x10000,
 };
 
+struct data_call {
+    int             status;
+    int             retry;
+    int             cid;
+    int             active;
+    char *          type;
+    char *          ifname;
+    char *          addresses;
+    char *          dnses;
+    char *          gateways;
+};
+
 struct sim_app {
 	char *app_id;
 	guint app_type;
@@ -74,6 +110,7 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
 GSList *ril_util_parse_clcc(struct ril_msg *message);
+GSList *ril_util_parse_data_call_list(struct ril_msg *message);
 char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len);

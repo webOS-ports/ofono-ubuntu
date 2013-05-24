@@ -45,10 +45,89 @@
 
 struct gprs_data {
 	GRil *ril;
+	GSList *calls;
 	unsigned int vendor;
 	int max_cids;
 	int tech;
+	int status;
 };
+
+/* TODO: ? */
+static char printBuf[PRINTBUF_SIZE];
+
+static void ril_gprs_registration_status(struct ofono_gprs *gprs,
+						ofono_gprs_status_cb_t cb,
+						void *data);
+
+static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_gprs *gprs = user_data;
+
+	if (message->req != RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED) {
+		ofono_error("ril_gprs_state_change: invalid message received %d",
+				message->req);
+		return;
+	}
+
+	ril_gprs_registration_status(gprs, NULL, NULL);
+}
+
+static void ril_gprs_update_calls(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_gprs *gprs = user_data;
+	GSList *calls;
+
+	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
+		ofono_error("ril_gprs_update_calls: invalid message received %d",
+				message->req);
+		return;
+	}
+
+	DBG("");
+
+	calls = ril_util_parse_data_call_list(message);
+
+	/* TODO: For now, this is all just debug code.  Need to add
+	 * code based on voicecall which comparse and creates new
+	 * contexts if calls are initated by the network. */
+
+	g_slist_foreach(calls, (GFunc) g_free, NULL);
+	g_slist_free(calls);
+}
+
+static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
+						gpointer user_data)
+{
+	if (message->error != RIL_E_SUCCESS) {
+		ofono_error("SET_PREF_NETWORK reply failure: %s", ril_error_to_string(message->error));
+	}
+}
+
+static void ril_gprs_set_pref_network(struct ofono_gprs *gprs)
+{
+	struct gprs_data *gd = ofono_gprs_get_data(gprs);
+	struct parcel rilp;
+
+	DBG("");
+
+	/*
+	 * TODO (OEM):
+	 *
+	 * The preferred network type may need to be set
+	 * on a device-specific basis.  For now, we use
+	 * GSM_WCDMA which prefers WCDMA ( ie. HS* ) over
+	 * the base GSM.
+	 */
+	parcel_init(&rilp);
+	parcel_w_int32(&rilp, PREF_NET_TYPE_GSM_WCDMA);
+
+	if (g_ril_send(gd->ril, RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE,
+			rilp.data, rilp.size, ril_gprs_set_pref_network_cb, NULL, NULL) <= 0) {
+		ofono_error("Send RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE failed.");
+	}
+
+	parcel_free(&rilp);
+}
 
 static void ril_gprs_set_attached(struct ofono_gprs *gprs, int attached,
 					ofono_gprs_cb_t cb, void *data)
@@ -86,44 +165,71 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		DBG("DATA_REGISTRATION reply - OK");
 		decode_ril_error(&error, "OK");
 	} else {
-		ofono_error("Reply failure: %s", ril_error_to_string(message->error));
+		ofono_error("ril_data_reg_cb: reply failure: %s",
+				ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
-
-		if (cb)
-			cb(&error, -1, cbd->data);
-		return;
+		error.error = message->error;
+		goto error;
 	}
 
 	if (ril_util_parse_reg(message, &status,
 				&lac, &ci, &tech, &max_cids) == FALSE) {
 		ofono_error("Failure parsing data registration response.");
-		if (cb)
-			CALLBACK_WITH_FAILURE(cb, -1, cbd->data);
+		decode_ril_error(&error, "FAIL");
+		goto error;
+	}
+
+	/*
+	 * TODO: might want to consider checking against the current value
+	 * and modifying if the incoming value is greater...
+	 */
+
+	if (cb == NULL) {
+		if (gd->max_cids == 0) {
+			DBG("Setting max cids to %d", max_cids);
+			gd->max_cids = max_cids;
+			ofono_gprs_set_cid_range(gprs, 1, max_cids);
+
+			/* TODO:
+			 *
+			 * Register listeners for:
+			 * - detach_notify()
+			 * - status_notify()
+			 * - suspend/resume_notify() - hw optional
+			 * - bearer_notify
+			 * - set_pre_network()
+			 *   - send REQUEST_DATA_REGISTRATION_STATE!
+			 */
+
+
+			DBG("calling ofono_gprs_register...");
+			ofono_gprs_register(gprs);
+
+			DBG("setting up watches...");
+			g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
+					ril_gprs_update_calls, gprs);
+			g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+					ril_gprs_state_change, gprs);
+
+			return;
+		}
+
+		if (gd->status != status) {
+			DBG("gd->status: %d status: %d", gd->status, status);
+			ofono_gprs_status_notify(gprs, status);
+		}
+
 		return;
 	}
 
-	DBG("oFono reg - status: %s, lac: %x, ci: %x, tech: %s max_cids: %d",
-		registration_status_to_string(status),
-		lac, ci, registration_tech_to_string(tech),
-		max_cids);
-
-	if (gd->max_cids == 0 && cb == NULL) {
-		DBG("Setting max cids to %d", max_cids);
-		gd->max_cids = max_cids;
-		gd->tech = tech;
-		ofono_gprs_set_cid_range(gprs, 1, max_cids);
-
-		/* Register listeners for:
-		 * - detach_notify()
-		 * - status_notify()
-		 * - suspend/resume_notify() - hw optional
-		 * - bearer_notify
-		 */
-		ofono_gprs_register(gprs);
-		return;
-	}
-
+	gd->status = status;
+	gd->tech = tech;
 	cb(&error, status, cbd->data);
+	return;
+
+error:
+	if (cb)
+		cb(&error, -1, cbd->data);
 }
 
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
@@ -132,14 +238,18 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 {
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct cb_data *cbd = cb_data_new(cb, data);
+	guint ret;
+
 	cbd->user = gprs;
 
 	DBG("");
 
-	if (g_ril_send(gd->ril, RIL_REQUEST_DATA_REGISTRATION_STATE,
-			NULL, 0, ril_data_reg_cb, cbd, g_free) <= 0) {
-		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");
+	ret = g_ril_send(gd->ril, RIL_REQUEST_DATA_REGISTRATION_STATE,
+				NULL, 0, ril_data_reg_cb, cbd, g_free);
+	printRequest(ret, RIL_REQUEST_DATA_REGISTRATION_STATE);
 
+	if (ret <= 0) {
+		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");
 		g_free(cbd);
 		CALLBACK_WITH_FAILURE(cb, -1, data);
 	}

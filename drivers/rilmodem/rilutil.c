@@ -50,6 +50,8 @@ struct ril_util_sim_state_query {
 	GDestroyNotify destroy;
 };
 
+static char printBuf[PRINTBUF_SIZE];
+
 static gboolean cpin_check(gpointer userdata);
 
 void decode_ril_error(struct ofono_error *error, const char *final)
@@ -92,6 +94,20 @@ gint ril_util_call_compare_by_id(gconstpointer a, gconstpointer b)
 		return -1;
 
 	if (id > call->id)
+		return 1;
+
+	return 0;
+}
+
+gint ril_util_data_call_compare(gconstpointer a, gconstpointer b)
+{
+	const struct data_call *ca = a;
+	const struct data_call *cb = b;
+
+	if (ca->cid < cb->cid)
+		return -1;
+
+	if (ca->cid > cb->cid)
 		return 1;
 
 	return 0;
@@ -222,6 +238,77 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	return l;
 }
 
+GSList *ril_util_parse_data_call_list(struct ril_msg *message)
+{
+	struct data_call *call;
+	struct parcel rilp;
+	GSList *l = NULL;
+	int num, i, version;
+	gchar *number, *name;
+
+	/* TODO: make conditional */
+	appendPrintBuf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+	startResponse;
+	/* TODO: make conditional */
+
+	ril_util_init_parcel(message, &rilp);
+
+	/* RIL version */
+	version = parcel_r_int32(&rilp);
+
+	/* Number of RIL_Call structs */
+	num = parcel_r_int32(&rilp);
+
+	/* TODO: make conditional */
+	appendPrintBuf("%sversion=%d,num=%d",
+			printBuf,
+			version,
+			num);
+	/* TODO: make conditional */
+
+	for (i = 0; i < num; i++) {
+		call = g_try_new(struct data_call, 1);
+		if (call == NULL)
+			break;
+
+		call->status = parcel_r_int32(&rilp);
+		call->retry = parcel_r_int32(&rilp);
+		call->cid = parcel_r_int32(&rilp);
+		call->active = parcel_r_int32(&rilp);
+
+		call->type = parcel_r_string(&rilp);
+		call->ifname = parcel_r_string(&rilp);
+		call->addresses = parcel_r_string(&rilp);
+		call->dnses = parcel_r_string(&rilp);
+		call->gateways = parcel_r_string(&rilp);
+
+		/* TODO: make conditional */
+		appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d\
+                      type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+				printBuf,
+				call->status,
+				call->retry,
+				call->cid,
+				call->active,
+				call->type,
+				call->ifname,
+				call->addresses,
+				call->dnses,
+				call->gateways);
+		/* TODO: make conditional */
+
+		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
+	}
+
+	closeResponse;
+	printResponse;
+	/* TODO: make conditional */
+
+	return l;
+}
+
 char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len)
@@ -230,7 +317,7 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	char *response = NULL;
 	char *hex_response = NULL;
 
-	/* Minimum length of SIM_IO_v6 is 12:
+	/* Minimum length of SIM_IO_Response is 12:
 	 * sw1 (int32)
 	 * sw2 (int32)
 	 * simResponse (string)
@@ -240,6 +327,15 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 		return FALSE;
 	}
 
+	DBG("message->buf_len is: %d", message->buf_len);
+
+	/* TODO: make conditional */
+	appendPrintBuf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+	startResponse;
+	/* TODO: make conditional */
+
 	ril_util_init_parcel(message, &rilp);
 
 	*sw1 = parcel_r_int32(&rilp);
@@ -247,11 +343,23 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 
 	response = parcel_r_string(&rilp);
 	if (response) {
-		hex_response = (char *) decode_hex((const char *) response, strlen(response),
+		DBG("response is set; len is: %d", strlen(response));
+		hex_response = (char *) decode_hex((const char *) response,
+							strlen(response),
 							(long *) hex_len, -1);
-		g_free(response);
 	}
 
+	/* TODO: make conditional */
+	appendPrintBuf("%ssw1=0x%.2X,sw2=0x%.2X,%s",
+		       printBuf,
+			*sw1,
+			*sw2,
+			response);
+	closeResponse;
+	printResponse;
+	/* TODO: make conditional */
+
+	g_free(response);
 	return hex_response;
 }
 
@@ -262,9 +370,13 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	char *aid_str = NULL;
 	char *app_str = NULL;
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
-	int app_state, app_type, pin_replaced, pin1_state, pin2_state;
+	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
 
 	DBG("");
+
+	appendPrintBuf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
 
 	if (app) {
 		app->app_type = RIL_APPTYPE_UNKNOWN;
@@ -295,10 +407,21 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	ims_index = parcel_r_int32(&rilp);
 	num_apps = parcel_r_int32(&rilp);
 
+        startResponse;
+
+	appendPrintBuf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,\
+              cdma_index=%d, ims_index=%d, ",
+		       printBuf,
+		       card_state,
+		       pin_state,
+		       gsm_umts_index,
+		       -1,
+		       ims_index);
+
 	for (i = 0; i < num_apps; i++) {
 		app_type = parcel_r_int32(&rilp);
 		app_state = parcel_r_int32(&rilp);
-		parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
+		perso_substate = parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
 
 		/* TODO: we need a way to instruct parcel to skip
 		 * a string, without allocating memory...
@@ -310,18 +433,21 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-		DBG("SIM app type: %s state: %s",
-			ril_apptype_to_string(app_type),
-			ril_appstate_to_string(app_state));
-
-		DBG("pin_replaced: %d pin1_state: %s pin2_state: %s",
-			pin_replaced,
-			ril_pinstate_to_string(pin1_state),
-			ril_pinstate_to_string(pin2_state));
+		appendPrintBuf("%s[app_type=%d,app_state=%d,perso_substate=%d,\
+                      aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+				printBuf,
+				app_type,
+				app_state,
+				perso_substate,
+				aid_str,
+				app_str,
+				pin_replaced,
+				pin1_state,
+				pin2_state);
 
 		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
 		if (i == gsm_umts_index && app) {
-			if (aid_str && strlen(aid_str)) {
+			if (aid_str) {
 				app->app_id = aid_str;
 				DBG("setting app_id (AID) to: %s", aid_str);
 			}
@@ -333,15 +459,8 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		g_free(app_str);
 	}
 
-	DBG("card_state: %s (%d) pin_state: %s (%d) num_apps: %d",
-		ril_cardstate_to_string(card_state),
-		card_state,
-		ril_pinstate_to_string(pin_state),
-		pin_state,
-		num_apps);
-
-	DBG("gsm_umts_index: %d; ims_index: %d",
-		gsm_umts_index, ims_index);
+	closeResponse;
+	printResponse;
 
 	if (card_state == RIL_CARDSTATE_PRESENT)
 		result = TRUE;
@@ -359,6 +478,17 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 
 	ril_util_init_parcel(message, &rilp);
 
+
+	/* TODO: make conditional */
+	appendPrintBuf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+
+	startResponse;
+	/* TODO: make conditional */
+
+	/* FIXME: need minimum message size check FIRST!!! */
+
 	/* Size of response string array
 	 *
 	 * Should be:
@@ -367,7 +497,7 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	 */
 	if ((tmp = parcel_r_int32(&rilp)) < 4) {
 		DBG("Size of response array is too small: %d", tmp);
-		return FALSE;
+		goto error;
 	}
 
 	DBG("size of response array is: %d", tmp);
@@ -379,8 +509,15 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 
 	tmp -= 4;
 
-	/* FIXME - RIL is only returning the first four strings
-	 * for both VOICE and DATA REGISTRATION requests.
+	/* FIXME: need to review VOICE_REGISTRATION response
+	 * as it returns ~15 parameters ( vs. 6 for DATA ).
+	 *
+	 * The first four parameters are the same for both
+	 * responses ( although status includes values for
+	 * emergency calls for VOICE response ).
+	 *
+	 * Parameters 5 & 6 have different meanings for
+	 * voice & data response.
 	 */
 	if (tmp--) {
 		DBG("reading reason...");
@@ -395,24 +532,49 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 		}
 	}
 
-	DBG("status: %s, lac: %s, ci: %s, radio tech: %s reason: %s max calls: %s",
-		sstatus, slac, sci, stech, sreason, smax);
+	/* TODO: make conditional */
+	appendPrintBuf("%s%s,%s,%s,%s,%s,%s",
+			printBuf,
+			sstatus,
+			slac,
+			sci,
+			stech,
+			sreason,
+			smax);
+	closeResponse;
+	printResponse;
+	/* TODO: make conditional */
 
-	if (status)
+	if (status) {
+		if (!sstatus) {
+			DBG("No sstatus value returned!");
+			goto error;
+		}
+
 		*status = atoi(sstatus);
+	}
+
 	if (lac) {
 		if (slac)
 			*lac = strtol(slac, NULL, 16);
 		else
 			*lac = -1;
 	}
+
 	if (ci) {
 		if (sci)
 			*ci = strtol(sci, NULL, 16);
 		else
 			*ci = -1;
 	}
+
+
 	if (tech) {
+		if (!stech) {
+			DBG("No tech returned!");
+			goto error;
+		}
+
 		switch(atoi(stech)) {
 		case RADIO_TECH_UNKNOWN:
 			*tech = -1;
@@ -449,6 +611,9 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	g_free(smax);
 
 	return TRUE;
+
+error:
+	return FALSE;
 }
 
 gint ril_util_parse_sms_response(struct ril_msg *message)

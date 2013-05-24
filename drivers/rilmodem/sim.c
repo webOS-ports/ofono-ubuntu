@@ -40,6 +40,7 @@
 
 #include "gril.h"
 #include "grilutil.h"
+#include "parcel.h"
 #include "ril_constants.h"
 #include "rilmodem.h"
 
@@ -62,6 +63,8 @@
 
 /* FID/path of SIM/USIM root directory */
 #define ROOTMF "3F00"
+
+static char printBuf[PRINTBUF_SIZE];
 
 /*
  * TODO: CDMA/IMS
@@ -95,6 +98,8 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	char *hex_path = NULL;
 	int len = 0;
 
+	DBG("");
+
 	if (path_len > 0 && path_len < 7) {
 		memcpy(db_path, path, path_len);
 		len = path_len;
@@ -109,10 +114,17 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	if (len > 0) {
 		hex_path = encode_hex(db_path, len, 0);
 		parcel_w_string(rilp, (char *) hex_path);
-		DBG("encoded path is: %s", hex_path);
-		g_free(hex_path);
-	} else if (fileid == 0x2FE2 || fileid == 0x2FE0) {
 
+		DBG("len > 0");
+
+		/* TODO: make conditional */
+		appendPrintBuf("%spath=%s,",
+				printBuf,
+				hex_path);
+		/* TODO: make conditional */
+
+		g_free(hex_path);
+	} else if (fileid == SIM_EF_ICCID_FILEID || fileid == SIM_EFPL_FILEID) {
 		/*
 		 * Special catch-all for EF_ICCID (unique card ID)
 		 * and EF_PL files which exist in the root directory.
@@ -124,7 +136,23 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		 * ../../src/simutil.c for more details.
 		 */
 		parcel_w_string(rilp, (char *) ROOTMF);
-		DBG("encoded path is: %s", ROOTMF);
+
+		/* TODO: make conditional */
+		appendPrintBuf("%spath=%s,",
+				printBuf,
+				ROOTMF);
+		/* TODO: make conditional */
+	} else {
+		/*
+		 * The only known case of this is EFPHASE_FILED (0x6FAE).
+		 * The ef_db table ( see /src/simutil.c ) entry for
+		 * EFPHASE contains a value of 0x0000 for it's
+		 * 'parent3g' member.  This causes a NULL path to
+		 * be returned.
+		 */
+
+		DBG("db_get_path*() returned empty path.");
+		parcel_w_string(rilp, NULL);
 	}
 }
 
@@ -138,7 +166,7 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	int flen = 0, rlen = 0, str = 0;
 	guchar *response = NULL;
 	guchar access[3] = { 0x00, 0x00, 0x00 };
-	guchar file_status = 0x01;
+	guchar file_status = EF_STATUS_VALID;
 
 	DBG("");
 
@@ -180,8 +208,6 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 		if (response[0] == 0x62) {
 			ok = sim_parse_3g_get_response(response, response_len,
 							&flen, &rlen, &str, access, NULL);
-
-			file_status = EF_STATUS_VALID;
 		} else
 			ok = sim_parse_2g_get_response(response, response_len,
 							&flen, &rlen, &str, access, &file_status);
@@ -213,12 +239,20 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	int ret;
 
 	parcel_init(&rilp);
+
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
 
-	set_path(sd, &rilp, fileid, path, path_len);
+        /* TODO: make conditional */
+	clearPrintBuf;
+	startRequest;
+	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
+			printBuf,
+			CMD_GET_RESPONSE,
+			fileid);
+	/* TODO: make conditional */
 
-	DBG("fileid: %s (%x)", sim_fileid_to_string(fileid), fileid);
+	set_path(sd, &rilp, fileid, path, path_len);
 
 	parcel_w_int32(&rilp, 0);           /* P1 */
 	parcel_w_int32(&rilp, 0);           /* P2 */
@@ -231,17 +265,28 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	 * NOTE:
 	 * GET_RESPONSE_EF_SIZE_BYTES == 15; !255
 	 */
-
 	parcel_w_int32(&rilp, 15);         /* P3 - max length */
 	parcel_w_string(&rilp, NULL);       /* data; only req'd for writes */
 	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
+
+	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			printBuf,
+			0,
+			0,
+			15,
+			NULL,
+			NULL,
+			sd->app_id);
+	closeRequest;
+	/* TODO: make conditional */
 
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
 				rilp.data,
 				rilp.size,
 				ril_file_info_cb, cbd, g_free);
+	printRequest(ret, RIL_REQUEST_SIM_IO);
 
 	parcel_free(&rilp);
 
@@ -300,6 +345,15 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
 		fileid, path);
 
+        /* TODO: make conditional */
+	clearPrintBuf;
+	startRequest;
+	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
+			printBuf,
+			CMD_READ_BINARY,
+			fileid);
+	/* TODO: make conditional */
+
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_BINARY);
 	parcel_w_int32(&rilp, fileid);
@@ -313,11 +367,24 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, NULL);          /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id);    /* AID (Application ID) */
 
+	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			printBuf,
+			(start >> 8),
+			(start & 0xff),
+			length,
+			NULL,
+			NULL,
+			sd->app_id);
+	closeRequest;
+	/* TODO: make conditional */
+
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
 				rilp.data,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
+	printRequest(ret, RIL_REQUEST_SIM_IO);
+
 	parcel_free(&rilp);
 
 	if (ret <= 0) {
@@ -336,8 +403,14 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int ret;
 
-	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
-		fileid, path);
+        /* TODO: make conditional */
+	clearPrintBuf;
+	startRequest;
+	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
+			printBuf,
+			CMD_GET_RESPONSE,
+			fileid);
+	/* TODO: make conditional */
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_RECORD);
@@ -352,11 +425,24 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
+	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			printBuf,
+			record,
+			4,
+			length,
+			NULL,
+			NULL,
+			sd->app_id);
+	closeRequest;
+	/* TODO: make conditional */
+
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
 				rilp.data,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
+
+	printRequest(ret, RIL_REQUEST_SIM_IO);
 
 	parcel_free(&rilp);
 
@@ -384,15 +470,28 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 		return;
 	}
 
+	/* TODO: make conditional */
+	appendPrintBuf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+
+	startResponse;
+	/* TODO: make conditional */
+
 	ril_util_init_parcel(message, &rilp);
 
         /* 15 is the max length of IMSI
 	 * add 4 bytes for string length */
         /* FIXME: g_assert(message->buf_len <= 19); */
-
 	imsi = parcel_r_string(&rilp);
 
-	DBG("ril_imsi_cb: IMSI: %s", imsi);
+	/* TODO: make conditional */
+	appendPrintBuf("%s%s",
+			printBuf,
+			imsi);
+	closeResponse;
+	printResponse;
+	/* TODO: make conditional */
 
 	cb(&error, imsi, cbd->data);
 	g_free(imsi);
@@ -408,13 +507,20 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 
 	DBG("");
 
+	startRequest;
+
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);            /* Number of params */
 	parcel_w_string(&rilp, sd->app_id);  /* AID (Application ID) */
 
+	appendPrintBuf("%s%s", printBuf, sd->app_id);
+
 	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_IMSI,
 				rilp.data, rilp.size, ril_imsi_cb, cbd, g_free);
 	parcel_free(&rilp);
+
+	closeRequest;
+	printRequest(ret, RIL_REQUEST_GET_IMSI);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -431,20 +537,30 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	DBG("");
 
 	if (ril_util_parse_sim_status(message, &app)) {
-		if (app.app_id && strlen(app.app_id))
+		if (app.app_id)
 			sd->app_id = app.app_id;
 
 		if (app.app_type != RIL_APPTYPE_UNKNOWN)
 			sd->app_type = app.app_type;
+
+		ofono_sim_register(sim);
 	}
+
+	/* TODO: if no SIM present, handle emergency calling. */
 }
 
 static int send_get_sim_status(struct ofono_sim *sim)
 {
 	struct sim_data *sd = ofono_sim_get_data(sim);
+	int ret;
 
-	return g_ril_send(sd->ril, RIL_REQUEST_GET_SIM_STATUS,
+	clearPrintBuf;
+
+	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_SIM_STATUS,
 				NULL, 0, sim_status_cb, sim, NULL);
+	printRequest(ret, RIL_REQUEST_GET_SIM_STATUS);
+
+	return ret;
 }
 
 static gboolean ril_sim_register(gpointer user)
@@ -454,12 +570,6 @@ static gboolean ril_sim_register(gpointer user)
 	DBG("");
 
 	send_get_sim_status(sim);
-
-	/* TODO: consider replacing idle call of register
-	 * with call in sim_status_cb().
-	 */
-	ofono_sim_register(sim);
-
 	return FALSE;
 }
 
@@ -543,6 +653,7 @@ void ril_sim_init(void)
 {
 	DBG("");
 	ofono_sim_driver_register(&driver);
+	clearPrintBuf;
 }
 
 void ril_sim_exit(void)
