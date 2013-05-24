@@ -47,8 +47,9 @@
 #define RILD_DBG_SOCKET "/dev/socket/rild-debug"
 
 struct ril_request {
-	gchar *req;
-	guint req_len;
+	gchar *data;
+	guint data_len;
+	guint req;
 	guint id;
 	guint gid;
 	GRilResponseFunc callback;
@@ -302,21 +303,21 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
         len = 8 + data_len;
 
         /* Add 4 bytes to buffer length to include length prefix */
-        r->req_len = len + 4;
+        r->data_len = len + 4;
 
-	r->req = g_try_new(char, r->req_len);
-	if (r->req == NULL) {
+	r->data = g_try_new(char, r->data_len);
+	if (r->data == NULL) {
 		ofono_error("ril_request: can't allocate new request.");
 		g_free(r);
 		return 0;
 	}
 
         /* convert length to network byte order (Big Endian) */
-        net_length = (guint32 *) r->req;
+        net_length = (guint32 *) r->data;
         *net_length = htonl(len);
 
 	/* advance past initial length */
-        cur_bufp = r->req + 4;
+        cur_bufp = r->data + 4;
 
 	/* write request code */
 	request = (guint32 *) cur_bufp;
@@ -331,6 +332,7 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 	/* copy request data */
 	memcpy(cur_bufp, (const void *) data, data_len);
 
+	r->req = req;
 	r->gid = gid;
 	r->id = id;
 	r->callback = func;
@@ -345,7 +347,7 @@ static void ril_request_destroy(struct ril_request *req)
 	if (req->notify)
 		req->notify(req->user_data);
 
-	g_free(req->req);
+	g_free(req->data);
 	g_free(req);
 }
 
@@ -400,6 +402,8 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 			req->id, message->serial_no);
 
 		if (req->id == message->serial_no) {
+
+			message->req = req->req;
 			req = g_queue_pop_nth(p->command_queue, i);
 
 			if (req->callback)
@@ -448,7 +452,10 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 		req_key = *((int *)key);
 		notify = value;
 
-		DBG("checking req_key: %d to req: %d", req_key, message->req);
+                /*
+		 * TODO: add #ifdef...
+		 * DBG("checking req_key: %d to req: %d", req_key, message->req);
+		 */
 
 		if (req_key != message->req)
 			continue;
@@ -458,8 +465,11 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 		while (list_item != NULL) {
 			node = list_item->data;
 
-			DBG("about to callback: notify: %x, node: %x, notify->nodes: %x, callback: %x",
-				notify, node, notify->nodes, node->callback);
+			/*
+			 * TODO: add #ifdef...
+			 * DBG("about to callback: notify: %x, node: %x, notify->nodes: %x, callback: %x",
+			 *	notify, node, notify->nodes, node->callback);
+			 */
 
 			node->callback(message, node->user_data);
 
@@ -606,7 +616,10 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 	p->in_read_handler = TRUE;
 
-	DBG("len: %d, wrap: %d", len, wrap);
+	/*
+	 * TODO: make conditional
+	 *	DBG("len: %d, wrap: %d", len, wrap);
+	 */
 
 	while (p->suspended == FALSE && (p->read_so_far < len)) {
 		gsize rbytes = MIN(len - p->read_so_far, wrap - p->read_so_far);
@@ -671,8 +684,12 @@ static gboolean can_write_data(gpointer data)
 	if (req == NULL)
 		return FALSE;
 
-	len = req->req_len;
-	DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
+	len = req->data_len;
+
+	/*
+	 * TODO: make conditional:
+	 * DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
+	 */
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
@@ -705,10 +722,13 @@ static gboolean can_write_data(gpointer data)
 #endif
 
 	bytes_written = g_ril_io_write(ril->io,
-					req->req + ril->req_bytes_written,
+					req->data + ril->req_bytes_written,
 					towrite);
 
-	DBG("bytes_written: %d", bytes_written);
+	/*
+	 * TODO: make conditional
+	 * DBG("bytes_written: %d", bytes_written);
+	 */
 
 	if (bytes_written == 0)
 		return FALSE;
