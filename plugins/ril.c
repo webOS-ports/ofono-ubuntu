@@ -69,6 +69,8 @@ struct ril_data {
 	ofono_bool_t reported;
 };
 
+static char printBuf[PRINTBUF_SIZE];
+
 static gboolean power_on(gpointer user_data);
 
 static void ril_debug(const char *str, void *user_data)
@@ -142,9 +144,14 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 static int send_get_sim_status(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
+	int ret;
 
-	return g_ril_send(ril->modem, RIL_REQUEST_GET_SIM_STATUS,
+	ret = g_ril_send(ril->modem, RIL_REQUEST_GET_SIM_STATUS,
 				NULL, 0, sim_status_cb, modem, NULL);
+
+	printRequest(ret, RIL_REQUEST_GET_SIM_STATUS);
+
+	return ret;
 }
 
 static int ril_probe(struct ofono_modem *modem)
