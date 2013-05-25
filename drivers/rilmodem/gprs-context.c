@@ -396,7 +396,10 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_deactivate_data_call_cb, cbd, g_free);
 
+	/* TODO: make conditional */
+	clearPrintBuf;
 	printRequest(ret, request);
+	/* TODO: make conditional */
 
 	parcel_free(&rilp);
 	if (ret <= 0) {

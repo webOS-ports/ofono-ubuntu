@@ -249,7 +249,8 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 	/* TODO: make conditional */
 	appendPrintBuf("[%04d]< %s",
 			message->serial_no,
-			ril_request_id_to_string(message->req));
+			ril_unsol_request_to_string(message->req));
+
 	startResponse;
 	/* TODO: make conditional */
 
@@ -285,6 +286,9 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 		call->gateways = parcel_r_string(&rilp);
 
 		/* TODO: make conditional */
+		/* TODO: figure out how to line-wrap properly
+		 * without introducing spaces in string.
+		 */
 		appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d\
                       type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
 				printBuf,
@@ -371,8 +375,6 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	char *app_str = NULL;
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
 	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
-
-	DBG("");
 
 	appendPrintBuf("[%04d]< %s",
 			message->serial_no,

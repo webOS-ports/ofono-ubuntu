@@ -74,7 +74,6 @@ static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 
 static void ril_gprs_update_calls(struct ril_msg *message, gpointer user_data)
 {
-	struct ofono_gprs *gprs = user_data;
 	GSList *calls;
 
 	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
@@ -82,8 +81,6 @@ static void ril_gprs_update_calls(struct ril_msg *message, gpointer user_data)
 				message->req);
 		return;
 	}
-
-	DBG("");
 
 	calls = ril_util_parse_data_call_list(message);
 
@@ -162,7 +159,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	int max_cids = 1;
 
 	if (message->error == RIL_E_SUCCESS) {
-		DBG("DATA_REGISTRATION reply - OK");
 		decode_ril_error(&error, "OK");
 	} else {
 		ofono_error("ril_data_reg_cb: reply failure: %s",
@@ -183,7 +179,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	 * TODO: might want to consider checking against the current value
 	 * and modifying if the incoming value is greater...
 	 */
-
 	if (cb == NULL) {
 		if (gd->max_cids == 0) {
 			DBG("Setting max cids to %d", max_cids);
@@ -205,7 +200,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 			DBG("calling ofono_gprs_register...");
 			ofono_gprs_register(gprs);
 
-			DBG("setting up watches...");
 			g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
 					ril_gprs_update_calls, gprs);
 			g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
@@ -242,10 +236,10 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 
 	cbd->user = gprs;
 
-	DBG("");
-
 	ret = g_ril_send(gd->ril, RIL_REQUEST_DATA_REGISTRATION_STATE,
 				NULL, 0, ril_data_reg_cb, cbd, g_free);
+
+	clearPrintBuf;
 	printRequest(ret, RIL_REQUEST_DATA_REGISTRATION_STATE);
 
 	if (ret <= 0) {
