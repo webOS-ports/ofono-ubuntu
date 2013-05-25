@@ -200,73 +200,6 @@ static gboolean ril_unregister_all(struct ril_s *ril,
 	return TRUE;
 }
 
-/* TODO: move to grilutil.h */
-static const char *err_name(int error)
-{
-	switch(error) {
-	case RIL_E_SUCCESS: return "SUCCESS";
-	case RIL_E_RADIO_NOT_AVAILABLE: return "RADIO_NOT_AVAILABLE";
-	case RIL_E_GENERIC_FAILURE: return "GENERIC_FAILURE";
-	case RIL_E_PASSWORD_INCORRECT: return "PASSWORD_INCORRECT";
-	case RIL_E_SIM_PIN2: return "SIM_PIN2";
-	case RIL_E_SIM_PUK2: return "SIM_PUK2";
-	case RIL_E_REQUEST_NOT_SUPPORTED: return "REQUEST_NOT_SUPPORTED";
-	case RIL_E_CANCELLED: return "CANCELLED";
-	case RIL_E_OP_NOT_ALLOWED_DURING_VOICE_CALL: return "OP_NOT_ALLOWED_DURING_VOICE_CALL";
-	case RIL_E_OP_NOT_ALLOWED_BEFORE_REG_TO_NW: return "OP_NOT_ALLOWED_BEFORE_REG_TO_NW";
-	case RIL_E_SMS_SEND_FAIL_RETRY: return "SMS_SEND_FAIL_RETRY";
-	case RIL_E_SIM_ABSENT: return "SIM_ABSENT";
-	case RIL_E_SUBSCRIPTION_NOT_AVAILABLE: return "SUBSCRIPTION_NOT_AVAILABLE";
-	case RIL_E_MODE_NOT_SUPPORTED: return "MODE_NOT_SUPPORTED";
-	case RIL_E_FDN_CHECK_FAILURE: return "FDN_CHECK_FAILURE";
-	case RIL_E_ILLEGAL_SIM_OR_ME: return "ILLEGAL_SIM_OR_ME";
-	default: return "<unknown errno>";
-	}
-}
-
-/* TODO: move to grilutil.h */
-static const char *unsol_request_name(int request)
-{
-	switch(request) {
-        case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED: return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
-        case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED: return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
-        case RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED: return "UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED";
-        case RIL_UNSOL_RESPONSE_NEW_SMS: return "UNSOL_RESPONSE_NEW_SMS";
-        case RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT: return "UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT";
-        case RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM: return "UNSOL_RESPONSE_NEW_SMS_ON_SIM";
-        case RIL_UNSOL_ON_USSD: return "UNSOL_ON_USSD";
-        case RIL_UNSOL_ON_USSD_REQUEST: return "UNSOL_ON_USSD_REQUEST(obsolete)";
-        case RIL_UNSOL_NITZ_TIME_RECEIVED: return "UNSOL_NITZ_TIME_RECEIVED";
-        case RIL_UNSOL_SIGNAL_STRENGTH: return "UNSOL_SIGNAL_STRENGTH";
-        case RIL_UNSOL_STK_SESSION_END: return "UNSOL_STK_SESSION_END";
-        case RIL_UNSOL_STK_PROACTIVE_COMMAND: return "UNSOL_STK_PROACTIVE_COMMAND";
-        case RIL_UNSOL_STK_EVENT_NOTIFY: return "UNSOL_STK_EVENT_NOTIFY";
-        case RIL_UNSOL_STK_CALL_SETUP: return "UNSOL_STK_CALL_SETUP";
-        case RIL_UNSOL_SIM_SMS_STORAGE_FULL: return "UNSOL_SIM_SMS_STORAGE_FUL";
-        case RIL_UNSOL_SIM_REFRESH: return "UNSOL_SIM_REFRESH";
-        case RIL_UNSOL_DATA_CALL_LIST_CHANGED: return "UNSOL_DATA_CALL_LIST_CHANGED";
-        case RIL_UNSOL_CALL_RING: return "UNSOL_CALL_RING";
-        case RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED: return "UNSOL_RESPONSE_SIM_STATUS_CHANGED";
-        case RIL_UNSOL_RESPONSE_CDMA_NEW_SMS: return "UNSOL_NEW_CDMA_SMS";
-        case RIL_UNSOL_RESPONSE_NEW_BROADCAST_SMS: return "UNSOL_NEW_BROADCAST_SMS";
-        case RIL_UNSOL_CDMA_RUIM_SMS_STORAGE_FULL: return "UNSOL_CDMA_RUIM_SMS_STORAGE_FULL";
-        case RIL_UNSOL_RESTRICTED_STATE_CHANGED: return "UNSOL_RESTRICTED_STATE_CHANGED";
-        case RIL_UNSOL_ENTER_EMERGENCY_CALLBACK_MODE: return "UNSOL_ENTER_EMERGENCY_CALLBACK_MODE";
-        case RIL_UNSOL_CDMA_CALL_WAITING: return "UNSOL_CDMA_CALL_WAITING";
-        case RIL_UNSOL_CDMA_OTA_PROVISION_STATUS: return "UNSOL_CDMA_OTA_PROVISION_STATUS";
-        case RIL_UNSOL_CDMA_INFO_REC: return "UNSOL_CDMA_INFO_REC";
-        case RIL_UNSOL_OEM_HOOK_RAW: return "UNSOL_OEM_HOOK_RAW";
-        case RIL_UNSOL_RINGBACK_TONE: return "UNSOL_RINGBACK_TONE";
-        case RIL_UNSOL_RESEND_INCALL_MUTE: return "UNSOL_RESEND_INCALL_MUTE";
-        case RIL_UNSOL_CDMA_SUBSCRIPTION_SOURCE_CHANGED: return "UNSOL_CDMA_SUBSCRIPTION_SOURCE_CHANGED";
-        case RIL_UNSOL_CDMA_PRL_CHANGED: return "UNSOL_CDMA_PRL_CHANGED";
-        case RIL_UNSOL_EXIT_EMERGENCY_CALLBACK_MODE: return "UNSOL_EXIT_EMERGENCY_CALLBACK_MODE";
-        case RIL_UNSOL_RIL_CONNECTED: return "UNSOL_RIL_CONNECTED";
-        default:
-		DBG("Got unknown request number %d", request);
-		return "<unknown request>";
-	}
-}
 
 /*
  * This function creates a RIL request.  For a good reference on
@@ -392,20 +325,29 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 {
 	gsize count = g_queue_get_length(p->command_queue);
 	struct ril_request *req;
+	gboolean found = FALSE;
 	int i;
 
 	g_assert(count > 0);
 
 	for (i = 0; i < count; i++) {
 		req = g_queue_peek_nth(p->command_queue, i);
-		DBG("comparing req->id: %d to message->serial_no: %d",
-			req->id, message->serial_no);
+
+		/* TODO: make conditional
+		 * DBG("comparing req->id: %d to message->serial_no: %d",
+		 *	req->id, message->serial_no);
+		 */
 
 		if (req->id == message->serial_no) {
-
+			found = TRUE;
 			message->req = req->req;
-			req = g_queue_pop_nth(p->command_queue, i);
 
+			DBG("RIL Reply: %s serial-no: %d errno: %s",
+				ril_request_id_to_string(message->req),
+				message->serial_no,
+				ril_error_to_string(message->error));
+
+			req = g_queue_pop_nth(p->command_queue, i);
 			if (req->callback)
 				req->callback(message, req->user_data);
 
@@ -430,6 +372,12 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 			break;
 		}
 	}
+
+	if (found == FALSE)
+		DBG("Reply: %s serial_no: %d without a matching request!",
+			ril_request_id_to_string(message->req),
+			message->serial_no);
+
 }
 
 static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
@@ -543,14 +491,11 @@ static void dispatch(struct ril_s *p, struct ril_msg *message)
 	}
 
 	if (message->unsolicited == TRUE) {
-		DBG("RIL Event: %s\n", unsol_request_name(message->req));
+		DBG("RIL Event: %s\n",
+			ril_unsol_request_to_string(message->req));
 
 		handle_unsol_req(p, message);
 	} else {
-		DBG("RIL Reply: serial-no: %d errno: %s\n",
-			message->serial_no,
-			err_name(message->error));
-
 		handle_response(p, message);
 	}
 error:
@@ -620,12 +565,14 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 	 * TODO: make conditional
 	 *	DBG("len: %d, wrap: %d", len, wrap);
 	 */
-
 	while (p->suspended == FALSE && (p->read_so_far < len)) {
 		gsize rbytes = MIN(len - p->read_so_far, wrap - p->read_so_far);
 
 		if (rbytes < 4) {
-			DBG("Not enough bytes for header length: len: %d", len);
+			/*
+			 * TODO: make conditional
+			 * DBG("Not enough bytes for header length: len: %d", len);
+			 */
 			return;
 		}
 
@@ -639,7 +586,10 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 		/* wait for the rest of the record... */
 		if (message == NULL) {
-			DBG("Not enough bytes for fixed record");
+
+			/* TODO: make conditional
+			 * DBG("Not enough bytes for fixed record");
+			 */
 			break;
 		}
 
