@@ -502,8 +502,6 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 		goto error;
 	}
 
-	DBG("size of response array is: %d", tmp);
-
 	sstatus = parcel_r_string(&rilp);
 	slac = parcel_r_string(&rilp);
 	sci = parcel_r_string(&rilp);
@@ -522,11 +520,9 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	 * voice & data response.
 	 */
 	if (tmp--) {
-		DBG("reading reason...");
 		sreason = parcel_r_string(&rilp);        /* TODO: different use for CDMA */
 
 		if (tmp--) {
-			DBG("reading max cids");
 			smax = parcel_r_string(&rilp);           /* TODO: different use for CDMA */
 
 			if (smax && max_calls)
