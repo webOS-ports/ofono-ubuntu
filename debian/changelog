@@ -1,8 +1,12 @@
 ofono (1.12phablet2) UNRELEASED; urgency=low
 
+  [ Tony Espy ]
   * [ril/rilmodem] Initial SIM support, includes:
    - read filesystem support
    - proper modem initialization
+
+  [ Sergio Schvezov ]
+  * [ril/rilmodem] Using pdu field to figure out SMSC length (LP: #1090437).
 
  -- Tony Espy <espy@canonical.com>  Fri, 12 Apr 2013 14:56:01 -0400
 
