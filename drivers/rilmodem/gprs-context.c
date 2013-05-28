@@ -52,9 +52,11 @@
 #define PREFIX_25_NETMASK "255.255.255.128"
 #define PREFIX_24_NETMASK "255.255.255.0"
 
-#define SETUP_DATA_CALL_PARAMS 7
+/* REQUEST_DEACTIVATE_DATA_CALL parameter values */
+#define DEACTIVATE_DATA_CALL_PARAMS 2
 
 /* REQUEST_SETUP_DATA_CALL parameter values */
+#define SETUP_DATA_CALL_PARAMS 7
 #define CHAP_PAP_OK "3"
 #define DATA_PROFILE_DEFAULT "0"
 #define PROTO_IP "IP"
@@ -382,6 +384,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 	gcd->state = STATE_DISABLING;
 
 	parcel_init(&rilp);
+	parcel_w_int32(&rilp, DEACTIVATE_DATA_CALL_PARAMS);
 	parcel_w_int32(&rilp, gcd->rild_context);
 
 	/*
