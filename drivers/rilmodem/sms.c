@@ -251,6 +251,12 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 					ril_buf_len,
 					sms_debug,
 					"sms-notify-decoded: ");
+
+    /* The first octect in the pdu contains the SMSC address length
+     * which is the X following octects it reads. We add 1 octet to
+     * the read length to take into account this read octet in order
+     * to calculate the proper tpdu length.
+     */
 	smsc_len = ril_data[0] + 1;
 	DBG("smsc_len is %d", smsc_len);
 
