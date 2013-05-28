@@ -399,8 +399,11 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	 * 20 is the min length of RIL_CardStatus_v6 as the AppState
 	 * array can be 0-length.
 	 */
-	if (message->buf_len < 20)
+	if (message->buf_len < 20) {
+		ofono_error("Size of SIM_STATUS reply too small: %d bytes",
+				message->buf_len);
 		goto done;
+	}
 
 	card_state = parcel_r_int32(&rilp);
 	pin_state = parcel_r_int32(&rilp);
@@ -411,8 +414,12 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 
         startResponse;
 
-	appendPrintBuf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,\
-              cdma_index=%d, ims_index=%d, ",
+	/* TODO:
+	 * How do we handle long (>80 chars) appendPrintBuf strings?
+	 * Using line wrapping ( via '\' ) introduces spaces in the output.
+	 * Do we just make a style-guide exception for PrintBuf operations?
+	 */
+	appendPrintBuf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
 		       printBuf,
 		       card_state,
 		       pin_state,
@@ -423,7 +430,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	for (i = 0; i < num_apps; i++) {
 		app_type = parcel_r_int32(&rilp);
 		app_state = parcel_r_int32(&rilp);
-		perso_substate = parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
+		perso_substate = parcel_r_int32(&rilp);
 
 		/* TODO: we need a way to instruct parcel to skip
 		 * a string, without allocating memory...
@@ -435,8 +442,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-		appendPrintBuf("%s[app_type=%d,app_state=%d,perso_substate=%d,\
-                      aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+		appendPrintBuf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
 				printBuf,
 				app_type,
 				app_state,
@@ -568,36 +574,34 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 
 
 	if (tech) {
-		if (!stech) {
-			DBG("No tech returned!");
-			goto error;
-		}
-
-		switch(atoi(stech)) {
-		case RADIO_TECH_UNKNOWN:
+		if (stech) {
+			switch(atoi(stech)) {
+			case RADIO_TECH_UNKNOWN:
+				*tech = -1;
+				break;
+			case RADIO_TECH_GPRS:
+				*tech = ACCESS_TECHNOLOGY_GSM;
+				break;
+			case RADIO_TECH_EDGE:
+				*tech = ACCESS_TECHNOLOGY_GSM_EGPRS;
+				break;
+			case RADIO_TECH_UMTS:
+				*tech = ACCESS_TECHNOLOGY_UTRAN;
+				break;
+			case RADIO_TECH_HSDPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA;
+				break;
+			case RADIO_TECH_HSUPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSUPA;
+				break;
+			case RADIO_TECH_HSPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA_HSUPA;
+				break;
+			default:
+				*tech = -1;
+			}
+		} else
 			*tech = -1;
-			break;
-		case RADIO_TECH_GPRS:
-			*tech = ACCESS_TECHNOLOGY_GSM;
-			break;
-		case RADIO_TECH_EDGE:
-			*tech = ACCESS_TECHNOLOGY_GSM_EGPRS;
-			break;
-		case RADIO_TECH_UMTS:
-			*tech = ACCESS_TECHNOLOGY_UTRAN;
-			break;
-		case RADIO_TECH_HSDPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA;
-			break;
-		case RADIO_TECH_HSUPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSUPA;
-			break;
-		case RADIO_TECH_HSPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA_HSUPA;
-			break;
-		default:
-			*tech = -1;
-		}
 	}
 
 	/* Free our parcel handlers */

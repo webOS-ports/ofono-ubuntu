@@ -175,50 +175,32 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	/*
-	 * TODO: might want to consider checking against the current value
-	 * and modifying if the incoming value is greater...
-	 */
-	if (cb == NULL) {
-		if (gd->max_cids == 0) {
-			DBG("Setting max cids to %d", max_cids);
-			gd->max_cids = max_cids;
-			ofono_gprs_set_cid_range(gprs, 1, max_cids);
+	if (gd->status == -1) {
+		DBG("calling ofono_gprs_register...");
+		ofono_gprs_register(gprs);
 
-			/* TODO:
-			 *
-			 * Register listeners for:
-			 * - detach_notify()
-			 * - status_notify()
-			 * - suspend/resume_notify() - hw optional
-			 * - bearer_notify
-			 * - set_pre_network()
-			 *   - send REQUEST_DATA_REGISTRATION_STATE!
-			 */
+		g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
+				ril_gprs_update_calls, gprs);
+		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+				ril_gprs_state_change, gprs);
+	}
 
+	if (max_cids > gd->max_cids) {
+		DBG("Setting max cids to %d", max_cids);
+		gd->max_cids = max_cids;
+		ofono_gprs_set_cid_range(gprs, 1, max_cids);
+	}
 
-			DBG("calling ofono_gprs_register...");
-			ofono_gprs_register(gprs);
-
-			g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
-					ril_gprs_update_calls, gprs);
-			g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
-					ril_gprs_state_change, gprs);
-
-			return;
-		}
-
-		if (gd->status != status) {
-			DBG("gd->status: %d status: %d", gd->status, status);
-			ofono_gprs_status_notify(gprs, status);
-		}
-
-		return;
+	if (gd->status != status) {
+		DBG("gd->status: %d status: %d", gd->status, status);
+		ofono_gprs_status_notify(gprs, status);
 	}
 
 	gd->status = status;
 	gd->tech = tech;
-	cb(&error, status, cbd->data);
+
+	if (cb)
+		cb(&error, status, cbd->data);
 	return;
 
 error:
@@ -263,6 +245,8 @@ static int ril_gprs_probe(struct ofono_gprs *gprs,
 
 	gd->ril = g_ril_clone(ril);
 	gd->vendor = vendor;
+	gd->max_cids = 0;
+	gd->status = -1;
 
 	ofono_gprs_set_data(gprs, gd);
 
