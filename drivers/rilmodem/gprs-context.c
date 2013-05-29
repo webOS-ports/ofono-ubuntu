@@ -77,7 +77,6 @@ struct gprs_context_data {
 	char username[OFONO_GPRS_MAX_USERNAME_LENGTH + 1];
 	char password[OFONO_GPRS_MAX_PASSWORD_LENGTH + 1];
 	enum state state;
-	unsigned int vendor;
 };
 
 /* TODO: make conditional */
@@ -432,7 +431,6 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 		return -ENOMEM;
 
 	gcd->ril = g_ril_clone(ril);
-	gcd->vendor = vendor;
 
 	ofono_gprs_context_set_data(gc, gcd);
 
