@@ -46,13 +46,12 @@
 struct gprs_data {
 	GRil *ril;
 	GSList *calls;
-	unsigned int vendor;
 	int max_cids;
 	int tech;
 	int status;
 };
 
-/* TODO: ? */
+/* TODO: make conditional */
 static char printBuf[PRINTBUF_SIZE];
 
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
@@ -244,7 +243,6 @@ static int ril_gprs_probe(struct ofono_gprs *gprs,
 		return -ENOMEM;
 
 	gd->ril = g_ril_clone(ril);
-	gd->vendor = vendor;
 	gd->max_cids = 0;
 	gd->status = -1;
 
