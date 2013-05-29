@@ -43,6 +43,23 @@
 #include "common.h"
 #include "rilmodem.h"
 
+/*
+ * This module is the ofono_gprs_driver implementation for rilmodem.
+ *
+ * Notes:
+ *
+ * 1. ofono_gprs_suspend/resume() are not used by this module, as
+ *    the concept of suspended GPRS is not exposed by RILD.
+ *
+ * 2. ofono_gprs_bearer_notify() is never called as RILD does not
+ *    expose an unsolicited event equivalent to +CPSB ( see 27.007
+ *    7.29 ), and the tech values returned by REQUEST_DATA/VOICE
+ *    _REGISTRATION requests do not match the values defined for
+ *    <AcT> in the +CPSB definition.  Note, the values returned by
+ *    the *REGISTRATION commands are aligned with those defined by
+ *    +CREG ( see 27.003 7.2 ).
+ */
+
 struct gprs_data {
 	GRil *ril;
 	GSList *calls;
