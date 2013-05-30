@@ -106,6 +106,28 @@ static char *ril_gprs_context_get_prefix(const char *address)
 
 	return result;
 }
+
+static void ril_gprs_context_call_list_changed(struct ril_msg *message,
+						gpointer user_data)
+{
+	GSList *calls = NULL, *iterator = NULL;
+
+	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
+		ofono_error("ril_gprs_update_calls: invalid message received %d",
+				message->req);
+		return;
+	}
+
+	calls = ril_util_parse_data_call_list(message);
+
+	for (iterator = list; iterator; iterator = iterator->next) {
+		/* Is current call in the list? */
+	}
+
+	g_slist_foreach(calls, (GFunc) g_free, NULL);
+	g_slist_free(calls);
+}
+
 static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
@@ -434,9 +456,8 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 
 	ofono_gprs_context_set_data(gc, gcd);
 
-	/* TODO: Register for disconnects! */
-        /* g_at_chat_register(chat, "+CGEV:", cgev_notify, FALSE, gc, NULL); */
-
+	g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
+			ril_gprs_context_call_list_changed, gc);
 	return 0;
 }
 

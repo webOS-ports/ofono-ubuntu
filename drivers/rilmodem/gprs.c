@@ -62,7 +62,6 @@
 
 struct gprs_data {
 	GRil *ril;
-	GSList *calls;
 	int max_cids;
 	int tech;
 	int status;
@@ -86,26 +85,6 @@ static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 	}
 
 	ril_gprs_registration_status(gprs, NULL, NULL);
-}
-
-static void ril_gprs_update_calls(struct ril_msg *message, gpointer user_data)
-{
-	GSList *calls;
-
-	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
-		ofono_error("ril_gprs_update_calls: invalid message received %d",
-				message->req);
-		return;
-	}
-
-	calls = ril_util_parse_data_call_list(message);
-
-	/* TODO: For now, this is all just debug code.  Need to add
-	 * code based on voicecall which comparse and creates new
-	 * contexts if calls are initated by the network. */
-
-	g_slist_foreach(calls, (GFunc) g_free, NULL);
-	g_slist_free(calls);
 }
 
 static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
@@ -195,8 +174,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		DBG("calling ofono_gprs_register...");
 		ofono_gprs_register(gprs);
 
-		g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
-				ril_gprs_update_calls, gprs);
 		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
 				ril_gprs_state_change, gprs);
 	}
