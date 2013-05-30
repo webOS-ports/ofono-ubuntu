@@ -50,6 +50,7 @@ struct ril_util_sim_state_query {
 	GDestroyNotify destroy;
 };
 
+/* TODO: make conditional */
 static char printBuf[PRINTBUF_SIZE];
 
 static gboolean cpin_check(gpointer userdata);
@@ -134,6 +135,43 @@ static gboolean cpin_check(gpointer userdata)
 	req->cpin_poll_source = 0;
 
 	return FALSE;
+}
+
+gchar *ril_util_get_netmask(const gchar *address)
+{
+	char *result;
+
+	if (g_str_has_suffix(address, "/30")) {
+		result = PREFIX_30_NETMASK;
+	} else if (g_str_has_suffix(address, "/29")) {
+		result = PREFIX_29_NETMASK;
+	} else if (g_str_has_suffix(address, "/28")) {
+		result = PREFIX_28_NETMASK;
+	} else if (g_str_has_suffix(address, "/27")) {
+		result = PREFIX_27_NETMASK;
+	} else if (g_str_has_suffix(address, "/26")) {
+		result = PREFIX_26_NETMASK;
+	} else if (g_str_has_suffix(address, "/25")) {
+		result = PREFIX_25_NETMASK;
+	} else if (g_str_has_suffix(address, "/24")) {
+		result = PREFIX_24_NETMASK;
+	} else {
+		/*
+		 * This handles the case where the
+		 * Samsung RILD returns an address without
+		 * a prefix, however it explicitly sets a
+		 * /24 netmask ( which isn't returned as
+		 * an attribute of the DATA_CALL.
+		 *
+		 * TODO/OEM: this might need to be quirked
+		 * for specific devices.
+		 */
+		result = PREFIX_24_NETMASK;
+	}
+
+	DBG("address: %s netmask: %s", address, result);
+
+	return result;
 }
 
 void ril_util_init_parcel(struct ril_msg *message, struct parcel *rilp)
