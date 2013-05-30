@@ -1,10 +1,20 @@
-ofono (1.12phablet2) UNRELEASED; urgency=low
+ofono (1.12phablet3) UNRELEASED; urgency=low
 
+  * Adding test and maintenance scripts ofono-scripts binary package.
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Thu, 30 May 2013 17:10:33 -0300
+
+ofono (1.12phablet2) raring; urgency=low
+
+  [ Tony Espy ]
   * [ril/rilmodem] Initial SIM support, includes:
    - read filesystem support
    - proper modem initialization
 
- -- Tony Espy <espy@canonical.com>  Fri, 12 Apr 2013 14:56:01 -0400
+  [ Sergio Schvezov ]
+  * [ril/rilmodem] Using pdu field to figure out SMSC length (LP: #1090437).
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Wed, 29 May 2013 23:52:33 -0300
 
 ofono (1.12phablet1) raring; urgency=low
 
