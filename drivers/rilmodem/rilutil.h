@@ -27,7 +27,7 @@
 /* TODO:
  *  Guard with #ifdef RIL_DEBUG
  *  Based on code from:
- * 
+ *
  *  $AOSP/hardware/ril/libril/ril.cpp
  */
 #define startRequest           sprintf(printBuf, "(")
@@ -45,6 +45,15 @@
 
 // request, response, and unsolicited msg print macro
 #define PRINTBUF_SIZE 8096
+
+/* TODO: create a table lookup*/
+#define PREFIX_30_NETMASK "255.255.255.252"
+#define PREFIX_29_NETMASK "255.255.255.248"
+#define PREFIX_28_NETMASK "255.255.255.240"
+#define PREFIX_27_NETMASK "255.255.255.224"
+#define PREFIX_26_NETMASK "255.255.255.192"
+#define PREFIX_25_NETMASK "255.255.255.128"
+#define PREFIX_24_NETMASK "255.255.255.0"
 
 enum ril_util_sms_store {
 	RIL_UTIL_SMS_STORE_SM =	0,
@@ -99,7 +108,7 @@ gint ril_util_call_compare_by_status(gconstpointer a, gconstpointer b);
 gint ril_util_call_compare_by_phone_number(gconstpointer a, gconstpointer b);
 gint ril_util_call_compare_by_id(gconstpointer a, gconstpointer b);
 gint ril_util_call_compare(gconstpointer a, gconstpointer b);
-
+gchar *ril_util_get_netmask(const char *address);
 void ril_util_init_parcel(struct ril_msg *message, struct parcel *rilp);
 
 struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,

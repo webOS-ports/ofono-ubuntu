@@ -43,15 +43,6 @@
 
 #include "rilmodem.h"
 
-/* TODO: create a table lookup*/
-#define PREFIX_30_NETMASK "255.255.255.252"
-#define PREFIX_29_NETMASK "255.255.255.248"
-#define PREFIX_28_NETMASK "255.255.255.240"
-#define PREFIX_27_NETMASK "255.255.255.224"
-#define PREFIX_26_NETMASK "255.255.255.192"
-#define PREFIX_25_NETMASK "255.255.255.128"
-#define PREFIX_24_NETMASK "255.255.255.0"
-
 /* REQUEST_DEACTIVATE_DATA_CALL parameter values */
 #define DEACTIVATE_DATA_CALL_PARAMS 2
 
@@ -82,52 +73,6 @@ struct gprs_context_data {
 /* TODO: make conditional */
 static char printBuf[PRINTBUF_SIZE];
 
-static char *ril_gprs_context_get_prefix(const char *address)
-{
-	char *result = "255.255.255.255";
-
-	if (g_str_has_suffix(address, "/30")) {
-		result = PREFIX_30_NETMASK;
-	} else if (g_str_has_suffix(address, "/29")) {
-		result = PREFIX_29_NETMASK;
-	} else if (g_str_has_suffix(address, "/28")) {
-		result = PREFIX_28_NETMASK;
-	} else if (g_str_has_suffix(address, "/27")) {
-		result = PREFIX_27_NETMASK;
-	} else if (g_str_has_suffix(address, "/26")) {
-		result = PREFIX_26_NETMASK;
-	} else if (g_str_has_suffix(address, "/25")) {
-		result = PREFIX_25_NETMASK;
-	} else if (g_str_has_suffix(address, "/24")) {
-		result = PREFIX_24_NETMASK;
-	}
-
-	DBG("address: %s netmask: %s", address, result);
-
-	return result;
-}
-
-static void ril_gprs_context_call_list_changed(struct ril_msg *message,
-						gpointer user_data)
-{
-	GSList *calls = NULL, *iterator = NULL;
-
-	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
-		ofono_error("ril_gprs_update_calls: invalid message received %d",
-				message->req);
-		return;
-	}
-
-	calls = ril_util_parse_data_call_list(message);
-
-	for (iterator = list; iterator; iterator = iterator->next) {
-		/* Is current call in the list? */
-	}
-
-	g_slist_foreach(calls, (GFunc) g_free, NULL);
-	g_slist_free(calls);
-}
-
 static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
@@ -138,7 +83,10 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	struct parcel rilp;
 	gchar **dns_addresses = NULL;
 	int status, retry_time, cid, active, num, version;
-	char *type, *ifname, *addresses, *dnses, *gateways;
+	char *type, *ifname, *raw_ip_addrs, *dnses, *raw_gws;
+	char **split_ip_addr = NULL;
+	char **ip_addrs = NULL;
+	char **gateways = NULL;
 
 	/* TODO:
 	 * Cleanup duplicate code between this function and
@@ -181,9 +129,9 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 
 	type = parcel_r_string(&rilp);
 	ifname = parcel_r_string(&rilp);
-	addresses = parcel_r_string(&rilp);
+	raw_ip_addrs = parcel_r_string(&rilp);
 	dnses = parcel_r_string(&rilp);
-	gateways = parcel_r_string(&rilp);
+	raw_gws = parcel_r_string(&rilp);
 
 	/* TODO: make conditional */
 	appendPrintBuf("%sversion=%d,num=%d",
@@ -200,9 +148,9 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 			active,
 			type,
 			ifname,
-			addresses,
+			raw_ip_addrs,
 			dnses,
-			gateways);
+			raw_gws);
 	closeResponse;
 	printResponse;
 	/* TODO: make conditional */
@@ -218,37 +166,71 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 
 	ofono_gprs_context_set_interface(gc, ifname);
 
+	/*
+	 * TODO: re-factor the following code into a
+	 * ril_util function that can be unit-tested.
+	 */
+
 	/* TODO:
 	 * RILD can return multiple addresses; oFono only supports
-	 * setting a single IPv4 address.  Add code to split and
-	 * only use the first address.
+	 * setting a single IPv4 address.  At this time, we only
+	 * use the first address.  It's possible that a RIL may
+	 * just specify the end-points of the point-to-point
+	 * connection, in which case this code will need to
+	 * changed to handle such a device.
 	 *
-	 * Note - the address may optionally include a prefix size
-	 * ( Eg. "/30" ).
+	 * For now split into a maximum of three, and only use
+	 * the first address for the remaining operations.
 	 */
-	ofono_gprs_context_set_ipv4_address(gc, addresses, TRUE);
+	ip_addrs = g_strsplit(raw_ip_addrs, " ", 3);
+	if (ip_addrs[0] == NULL) {
+		DBG("Invalid IP address field returned: %s", raw_ip_addrs);
+		goto error;
+	}
 
 	ofono_gprs_context_set_ipv4_netmask(gc,
-			ril_gprs_context_get_prefix(addresses));
+			ril_util_get_netmask(ip_addrs[0]));
 
-	/* TODO:
-	 * RILD can return multiple addresses; oFono only supports
-	 * setting a single IPv4 gateway.  Add code to split and
-	 * only use the first address.
+	/*
+	 * Note - the address may optionally include a prefix size
+	 * ( Eg. "/30" ).  As this confuses NetworkManager, we
+	 * explicitly strip any prefix after calculating the netmask.
 	 */
-	ofono_gprs_context_set_ipv4_gateway(gc, gateways);
+	split_ip_addr = g_strsplit(ip_addrs[0], "/", 2);
+	if (split_ip_addr[0] == NULL) {
+		ofono_error("Invalid IP address; can't strip prefix: %s",
+				ip_addrs[0]);
+		goto error;
+	}
+
+	ofono_gprs_context_set_ipv4_address(gc, split_ip_addr[0], TRUE);
+
+	/*
+	 * RILD can return multiple addresses; oFono only supports
+	 * setting a single IPv4 gateway.
+	 */
+	gateways = g_strsplit(raw_gws, " ", 3);
+	if (gateways[0] == NULL) {
+		DBG("Invalid gateways field returned: %s", raw_gws);
+		goto error;
+	}
+
+	ofono_gprs_context_set_ipv4_gateway(gc, gateways[0]);
 
 	/* Split DNS addresses */
 	dns_addresses = g_strsplit(dnses, " ", 3);
 	ofono_gprs_context_set_ipv4_dns_servers(gc,
 						(const char **) dns_addresses);
 	g_strfreev(dns_addresses);
+	g_strfreev(ip_addrs);
+	g_strfreev(split_ip_addr);
+	g_strfreev(gateways);
 
 	g_free(type);
 	g_free(ifname);
-	g_free(addresses);
+	g_free(raw_ip_addrs);
 	g_free(dnses);
-	g_free(gateways);
+	g_free(raw_gws);
 
 	CALLBACK_WITH_SUCCESS(cb, cbd->data);
 	return;
