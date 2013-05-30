@@ -63,8 +63,8 @@ enum state {
 
 struct gprs_context_data {
 	GRil *ril;
-	unsigned int active_context;
-	unsigned int rild_context;
+	unsigned int active_ctx_cid;
+	unsigned int active_rild_cid;
 	char username[OFONO_GPRS_MAX_USERNAME_LENGTH + 1];
 	char password[OFONO_GPRS_MAX_PASSWORD_LENGTH + 1];
 	enum state state;
@@ -72,6 +72,48 @@ struct gprs_context_data {
 
 /* TODO: make conditional */
 static char printBuf[PRINTBUF_SIZE];
+
+static void ril_gprs_context_call_list_changed(struct ril_msg *message,
+						gpointer user_data)
+{
+	struct ofono_gprs_context *gc = user_data;
+	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
+	struct data_call *call = NULL;
+	gboolean active_cid_found = FALSE;
+	gboolean disconnect = FALSE;
+	GSList *calls = NULL, *iterator = NULL;
+
+	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
+		ofono_error("ril_gprs_update_calls: invalid message received %d",
+				message->req);
+		return;
+	}
+
+	calls = ril_util_parse_data_call_list(message);
+
+	for (iterator = calls; iterator; iterator = iterator->next) {
+		call = (struct data_call *) iterator->data;
+
+		if (call->cid == gcd->active_rild_cid) {
+			DBG("Found current call in call list: %d", call->cid);
+			active_cid_found = TRUE;
+
+			if (call->status == 0) {
+				disconnect = TRUE;
+			}
+		}
+	}
+
+	if (disconnect || active_cid_found == FALSE) {
+		gcd->active_ctx_cid = -1;
+		gcd->active_rild_cid = -1;
+		gcd->state = STATE_IDLE;
+		ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid);
+	}
+
+	g_slist_foreach(calls, (GFunc) g_free, NULL);
+	g_slist_free(calls);
+}
 
 static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 {
@@ -139,8 +181,7 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 			version,
 			num);
 
-	appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d\
-                      type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+	appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
 			printBuf,
 			status,
 			retry_time,
@@ -162,7 +203,7 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	gcd->state = STATE_ACTIVE;
-	gcd->rild_context = cid;
+	gcd->active_rild_cid = cid;
 
 	ofono_gprs_context_set_interface(gc, ifname);
 
@@ -248,7 +289,7 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	struct parcel rilp;
 	guchar profile[5] = { 0x00 };
 	gchar *protocol = PROTO_IP;
-	gchar *tech[3];
+	gchar tech[3];
 	int request = RIL_REQUEST_SETUP_DATA_CALL;
 	int ret;
 
@@ -258,7 +299,7 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
         /* TODO: make conditional */
 
 	cbd->user = gc;
-	gcd->active_context = ctx->cid;
+	gcd->active_ctx_cid = ctx->cid;
 	gcd->state = STATE_ENABLING;
 
 	memcpy(gcd->username, ctx->username, sizeof(ctx->username));
@@ -268,7 +309,8 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	parcel_w_int32(&rilp, SETUP_DATA_CALL_PARAMS);
 
         /* RadioTech: hardcoded to HSPA for now... */
-	sprintf(tech, "%d", (int) RADIO_TECH_HSPA);
+	sprintf((char *) tech, "%d", (int) RADIO_TECH_HSPA);
+	DBG("setting tech to: %s", tech);
 	parcel_w_string(&rilp, (char *) tech);
 
         /*
@@ -388,7 +430,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, DEACTIVATE_DATA_CALL_PARAMS);
-	parcel_w_int32(&rilp, gcd->rild_context);
+	parcel_w_int32(&rilp, gcd->active_rild_cid);
 
 	/*
 	 * TODO: airplane-mode; change reason to '1',
@@ -426,7 +468,6 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 {
 	GRil *ril = data;
 	struct gprs_context_data *gcd;
-	struct stat st;
 
 	DBG("");
 
@@ -435,10 +476,13 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 		return -ENOMEM;
 
 	gcd->ril = g_ril_clone(ril);
+	gcd->active_ctx_cid = -1;
+	gcd->active_rild_cid = -1;
+	gcd->state = STATE_IDLE;
 
 	ofono_gprs_context_set_data(gc, gcd);
 
-	g_ril_register(gd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
+	g_ril_register(gcd->ril, RIL_UNSOL_DATA_CALL_LIST_CHANGED,
 			ril_gprs_context_call_list_changed, gc);
 	return 0;
 }
