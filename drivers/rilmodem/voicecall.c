@@ -43,9 +43,7 @@
 #include "grilutil.h"
 
 #include "common.h"
-
 #include "rilmodem.h"
-#include "parcel.h"
 
 /* Amount of ms we wait between CLCC calls */
 #define POLL_CLCC_INTERVAL 300

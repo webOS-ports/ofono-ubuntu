@@ -35,7 +35,6 @@
 
 #include "common.h"
 #include "rilutil.h"
-#include "parcel.h"
 #include "simutil.h"
 #include "util.h"
 #include "ril_constants.h"
@@ -50,6 +49,9 @@ struct ril_util_sim_state_query {
 	void *userdata;
 	GDestroyNotify destroy;
 };
+
+/* TODO: make conditional */
+static char print_buf[PRINT_BUF_SIZE];
 
 static gboolean cpin_check(gpointer userdata);
 
@@ -98,6 +100,20 @@ gint ril_util_call_compare_by_id(gconstpointer a, gconstpointer b)
 	return 0;
 }
 
+gint ril_util_data_call_compare(gconstpointer a, gconstpointer b)
+{
+	const struct data_call *ca = a;
+	const struct data_call *cb = b;
+
+	if (ca->cid < cb->cid)
+		return -1;
+
+	if (ca->cid > cb->cid)
+		return 1;
+
+	return 0;
+}
+
 gint ril_util_call_compare(gconstpointer a, gconstpointer b)
 {
 	const struct ofono_call *ca = a;
@@ -119,6 +135,52 @@ static gboolean cpin_check(gpointer userdata)
 	req->cpin_poll_source = 0;
 
 	return FALSE;
+}
+
+gchar *ril_util_get_netmask(const gchar *address)
+{
+	char *result;
+
+	if (g_str_has_suffix(address, "/30")) {
+		result = PREFIX_30_NETMASK;
+	} else if (g_str_has_suffix(address, "/29")) {
+		result = PREFIX_29_NETMASK;
+	} else if (g_str_has_suffix(address, "/28")) {
+		result = PREFIX_28_NETMASK;
+	} else if (g_str_has_suffix(address, "/27")) {
+		result = PREFIX_27_NETMASK;
+	} else if (g_str_has_suffix(address, "/26")) {
+		result = PREFIX_26_NETMASK;
+	} else if (g_str_has_suffix(address, "/25")) {
+		result = PREFIX_25_NETMASK;
+	} else if (g_str_has_suffix(address, "/24")) {
+		result = PREFIX_24_NETMASK;
+	} else {
+		/*
+		 * This handles the case where the
+		 * Samsung RILD returns an address without
+		 * a prefix, however it explicitly sets a
+		 * /24 netmask ( which isn't returned as
+		 * an attribute of the DATA_CALL.
+		 *
+		 * TODO/OEM: this might need to be quirked
+		 * for specific devices.
+		 */
+		result = PREFIX_24_NETMASK;
+	}
+
+	DBG("address: %s netmask: %s", address, result);
+
+	return result;
+}
+
+void ril_util_init_parcel(struct ril_msg *message, struct parcel *rilp)
+{
+	/* Set up Parcel struct for proper parsing */
+	rilp->data = message->buf;
+	rilp->size = message->buf_len;
+	rilp->capacity = message->buf_len;
+	rilp->offset = 0;
 }
 
 struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
@@ -165,11 +227,7 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	int num, i;
 	gchar *number, *name;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* Number of RIL_Call structs */
 	num = parcel_r_int32(&rilp);
@@ -218,6 +276,83 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 	return l;
 }
 
+GSList *ril_util_parse_data_call_list(struct ril_msg *message)
+{
+	struct data_call *call;
+	struct parcel rilp;
+	GSList *l = NULL;
+	int num, i, version;
+	gchar *number, *name;
+
+	ril_util_init_parcel(message, &rilp);
+
+	/*
+	 * ril.h documents the reply to a RIL_REQUEST_DATA_CALL_LIST
+	 * as being an array of  RIL_Data_Call_Response_v6 structs,
+	 * however in reality, the response also includes a version
+	 * to start.
+	 */
+	version = parcel_r_int32(&rilp);
+
+	/* Number of calls */
+	num = parcel_r_int32(&rilp);
+
+	/* TODO: make conditional */
+	ril_append_print_buf("[%04d]< %s",
+				message->serial_no,
+				ril_unsol_request_to_string(message->req));
+
+	ril_start_response;
+
+	ril_append_print_buf("%sversion=%d,num=%d",
+			print_buf,
+			version,
+			num);
+	/* TODO: make conditional */
+
+	for (i = 0; i < num; i++) {
+		call = g_try_new(struct data_call, 1);
+		if (call == NULL)
+			break;
+
+		call->status = parcel_r_int32(&rilp);
+		call->retry = parcel_r_int32(&rilp);
+		call->cid = parcel_r_int32(&rilp);
+		call->active = parcel_r_int32(&rilp);
+
+		call->type = parcel_r_string(&rilp);
+		call->ifname = parcel_r_string(&rilp);
+		call->addresses = parcel_r_string(&rilp);
+		call->dnses = parcel_r_string(&rilp);
+		call->gateways = parcel_r_string(&rilp);
+
+		/* TODO: make conditional */
+		/* TODO: figure out how to line-wrap properly
+		 * without introducing spaces in string.
+		 */
+		ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+				print_buf,
+				call->status,
+				call->retry,
+				call->cid,
+				call->active,
+				call->type,
+				call->ifname,
+				call->addresses,
+				call->dnses,
+				call->gateways);
+		/* TODO: make conditional */
+
+		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
+	}
+
+	ril_close_response;
+	ril_print_response;
+	/* TODO: make conditional */
+
+	return l;
+}
+
 char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len)
@@ -236,22 +371,36 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 		return FALSE;
 	}
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	DBG("message->buf_len is: %d", message->buf_len);
+
+	ril_util_init_parcel(message, &rilp);
 
 	*sw1 = parcel_r_int32(&rilp);
 	*sw2 = parcel_r_int32(&rilp);
 
 	response = parcel_r_string(&rilp);
 	if (response) {
-		hex_response = (char *) decode_hex((const char *) response, strlen(response),
+		DBG("response is set; len is: %d", strlen(response));
+		hex_response = (char *) decode_hex((const char *) response,
+							strlen(response),
 							(long *) hex_len, -1);
-		g_free(response);
 	}
 
+	/* TODO: make conditional */
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+	ril_start_response;
+	ril_append_print_buf("%ssw1=0x%.2X,sw2=0x%.2X,%s",
+		       print_buf,
+			*sw1,
+			*sw2,
+			response);
+	ril_close_response;
+	ril_print_response;
+	/* TODO: make conditional */
+
+	g_free(response);
 	return hex_response;
 }
 
@@ -262,20 +411,18 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	char *aid_str = NULL;
 	char *app_str = NULL;
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
-	int app_state, app_type, pin_replaced, pin1_state, pin2_state;
+	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
 
-	DBG("");
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
 
 	if (app) {
 		app->app_type = RIL_APPTYPE_UNKNOWN;
 		app->app_id = NULL;
 	}
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/*
 	 * FIXME: Need to come up with a common scheme for verifying the
@@ -289,8 +436,11 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	 * 20 is the min length of RIL_CardStatus_v6 as the AppState
 	 * array can be 0-length.
 	 */
-	if (message->buf_len < 20)
+	if (message->buf_len < 20) {
+		ofono_error("Size of SIM_STATUS reply too small: %d bytes",
+				message->buf_len);
 		goto done;
+	}
 
 	card_state = parcel_r_int32(&rilp);
 	pin_state = parcel_r_int32(&rilp);
@@ -299,10 +449,25 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	ims_index = parcel_r_int32(&rilp);
 	num_apps = parcel_r_int32(&rilp);
 
+        ril_start_response;
+
+	/* TODO:
+	 * How do we handle long (>80 chars) ril_append_print_buf strings?
+	 * Using line wrapping ( via '\' ) introduces spaces in the output.
+	 * Do we just make a style-guide exception for PrintBuf operations?
+	 */
+	ril_append_print_buf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
+		       print_buf,
+		       card_state,
+		       pin_state,
+		       gsm_umts_index,
+		       -1,
+		       ims_index);
+
 	for (i = 0; i < num_apps; i++) {
 		app_type = parcel_r_int32(&rilp);
 		app_state = parcel_r_int32(&rilp);
-		parcel_r_int32(&rilp);        /* Ignore perso_substate for now */
+		perso_substate = parcel_r_int32(&rilp);
 
 		/* TODO: we need a way to instruct parcel to skip
 		 * a string, without allocating memory...
@@ -314,14 +479,16 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-		DBG("SIM app type: %s state: %s",
-			ril_apptype_to_string(app_type),
-			ril_appstate_to_string(app_state));
-
-		DBG("pin_replaced: %d pin1_state: %s pin2_state: %s",
-			pin_replaced,
-			ril_pinstate_to_string(pin1_state),
-			ril_pinstate_to_string(pin2_state));
+		ril_append_print_buf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+				print_buf,
+				app_type,
+				app_state,
+				perso_substate,
+				aid_str,
+				app_str,
+				pin_replaced,
+				pin1_state,
+				pin2_state);
 
 		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
 		if (i == gsm_umts_index && app) {
@@ -337,15 +504,8 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		g_free(app_str);
 	}
 
-	DBG("card_state: %s (%d) pin_state: %s (%d) num_apps: %d",
-		ril_cardstate_to_string(card_state),
-		card_state,
-		ril_pinstate_to_string(pin_state),
-		pin_state,
-		num_apps);
-
-	DBG("gsm_umts_index: %d; ims_index: %d",
-		gsm_umts_index, ims_index);
+	ril_close_response;
+	ril_print_response;
 
 	if (card_state == RIL_CARDSTATE_PRESENT)
 		result = TRUE;
@@ -354,69 +514,131 @@ done:
 }
 
 gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
-				int *lac, int *ci, int *tech)
+				int *lac, int *ci, int *tech, int *max_calls)
 {
 	struct parcel rilp;
-	gchar *sstatus, *slac, *sci, *stech;
+	int tmp;
+	gchar *sstatus = NULL, *slac = NULL, *sci = NULL;
+	gchar *stech = NULL, *sreason = NULL, *smax = NULL;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
-	/* Size of char ** */
-	if (parcel_r_int32(&rilp) == 0)
-		return FALSE;
+
+	/* TODO: make conditional */
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+
+	ril_start_response;
+	/* TODO: make conditional */
+
+	/* FIXME: need minimum message size check FIRST!!! */
+
+	/* Size of response string array
+	 *
+	 * Should be:
+	 *   >= 4 for VOICE_REG reply
+	 *   >= 5 for DATA_REG reply
+	 */
+	if ((tmp = parcel_r_int32(&rilp)) < 4) {
+		DBG("Size of response array is too small: %d", tmp);
+		goto error;
+	}
 
 	sstatus = parcel_r_string(&rilp);
 	slac = parcel_r_string(&rilp);
 	sci = parcel_r_string(&rilp);
 	stech = parcel_r_string(&rilp);
 
-	DBG("RIL reg - status: %s, lac: %s, ci: %s, radio tech: %s",
-				sstatus, slac, sci, stech);
+	tmp -= 4;
 
-	if (status)
+	/* FIXME: need to review VOICE_REGISTRATION response
+	 * as it returns ~15 parameters ( vs. 6 for DATA ).
+	 *
+	 * The first four parameters are the same for both
+	 * responses ( although status includes values for
+	 * emergency calls for VOICE response ).
+	 *
+	 * Parameters 5 & 6 have different meanings for
+	 * voice & data response.
+	 */
+	if (tmp--) {
+		sreason = parcel_r_string(&rilp);        /* TODO: different use for CDMA */
+
+		if (tmp--) {
+			smax = parcel_r_string(&rilp);           /* TODO: different use for CDMA */
+
+			if (smax && max_calls)
+				*max_calls = atoi(smax);
+		}
+	}
+
+	/* TODO: make conditional */
+	ril_append_print_buf("%s%s,%s,%s,%s,%s,%s",
+			print_buf,
+			sstatus,
+			slac,
+			sci,
+			stech,
+			sreason,
+			smax);
+	ril_close_response;
+	ril_print_response;
+	/* TODO: make conditional */
+
+	if (status) {
+		if (!sstatus) {
+			DBG("No sstatus value returned!");
+			goto error;
+		}
+
 		*status = atoi(sstatus);
+	}
+
 	if (lac) {
 		if (slac)
 			*lac = strtol(slac, NULL, 16);
 		else
 			*lac = -1;
 	}
+
 	if (ci) {
 		if (sci)
 			*ci = strtol(sci, NULL, 16);
 		else
 			*ci = -1;
 	}
+
+
 	if (tech) {
-		switch(atoi(stech)) {
-		case RADIO_TECH_UNKNOWN:
+		if (stech) {
+			switch(atoi(stech)) {
+			case RADIO_TECH_UNKNOWN:
+				*tech = -1;
+				break;
+			case RADIO_TECH_GPRS:
+				*tech = ACCESS_TECHNOLOGY_GSM;
+				break;
+			case RADIO_TECH_EDGE:
+				*tech = ACCESS_TECHNOLOGY_GSM_EGPRS;
+				break;
+			case RADIO_TECH_UMTS:
+				*tech = ACCESS_TECHNOLOGY_UTRAN;
+				break;
+			case RADIO_TECH_HSDPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA;
+				break;
+			case RADIO_TECH_HSUPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSUPA;
+				break;
+			case RADIO_TECH_HSPA:
+				*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA_HSUPA;
+				break;
+			default:
+				*tech = -1;
+			}
+		} else
 			*tech = -1;
-			break;
-		case RADIO_TECH_GPRS:
-			*tech = ACCESS_TECHNOLOGY_GSM;
-			break;
-		case RADIO_TECH_EDGE:
-			*tech = ACCESS_TECHNOLOGY_GSM_EGPRS;
-			break;
-		case RADIO_TECH_UMTS:
-			*tech = ACCESS_TECHNOLOGY_UTRAN;
-			break;
-		case RADIO_TECH_HSDPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA;
-			break;
-		case RADIO_TECH_HSUPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSUPA;
-			break;
-		case RADIO_TECH_HSPA:
-			*tech = ACCESS_TECHNOLOGY_UTRAN_HSDPA_HSUPA;
-			break;
-		default:
-			*tech = -1;
-		}
 	}
 
 	/* Free our parcel handlers */
@@ -424,8 +646,13 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	g_free(slac);
 	g_free(sci);
 	g_free(stech);
+	g_free(sreason);
+	g_free(smax);
 
 	return TRUE;
+
+error:
+	return FALSE;
 }
 
 gint ril_util_parse_sms_response(struct ril_msg *message)
@@ -435,10 +662,7 @@ gint ril_util_parse_sms_response(struct ril_msg *message)
 	char *ack_pdu;
 
 	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* TP-Message-Reference for GSM/
 	 * BearerData MessageId for CDMA
@@ -459,10 +683,7 @@ gint ril_util_get_signal(struct ril_msg *message)
 	int gw_signal, cdma_dbm, evdo_dbm, lte_signal;
 
 	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+	ril_util_init_parcel(message, &rilp);
 
 	/* RIL_SignalStrength_v6 */
 	/* GW_SignalStrength */

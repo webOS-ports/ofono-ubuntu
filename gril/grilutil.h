@@ -35,6 +35,7 @@ const char *ril_cardstate_to_string(int card_state);
 const char *ril_error_to_string(int error);
 const char *ril_pinstate_to_string(int pin_state);
 const char *ril_request_id_to_string(int req);
+const char *ril_unsol_request_to_string(int request);
 
 void g_ril_util_debug_chat(gboolean in, const char *str, gsize len,
 				GRilDebugFunc debugf, gpointer user_data);

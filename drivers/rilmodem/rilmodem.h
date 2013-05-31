@@ -43,3 +43,9 @@ extern void ril_sms_exit(void);
 
 extern void ril_netreg_init(void);
 extern void ril_netreg_exit(void);
+
+extern void ril_gprs_init(void);
+extern void ril_gprs_exit(void);
+
+extern void ril_gprs_context_init(void);
+extern void ril_gprs_context_exit(void);

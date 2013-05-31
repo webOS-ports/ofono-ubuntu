@@ -81,8 +81,12 @@ int32_t parcel_r_int32(struct parcel *p)
 int parcel_w_int32(struct parcel *p, int32_t val)
 {
 	for (;;) {
-		DBG("parcel_w_int32(%d): offset = %d, cap = %d, size = %d",
-				val, p->offset, p->capacity, p->size);
+
+		/*
+		 * TODO: make conditional:
+		 * DBG("parcel_w_int32(%d): offset = %d, cap = %d, size = %d",
+		 *		val, p->offset, p->capacity, p->size);
+		 */
 		if (p->offset + sizeof(int32_t) < p->capacity) {
 			/* There's enough space */
 			*((int32_t *) (p->data + p->offset)) = val;
@@ -117,8 +121,11 @@ int parcel_w_string(struct parcel *p, char *str)
 	len = (gs16_len + 1) * sizeof(char16_t);
 	for (;;) {
 		size_t padded = PAD_SIZE(len);
-		DBG("parcel_w_string(\"%s\"): offset %d, cap %d, size %d",
-				str, p->offset, p->capacity, p->size);
+		/*
+		 * TODO: make conditional:
+		 * DBG("parcel_w_string(\"%s\"): offset %d, cap %d, size %d",
+		 *			str, p->offset, p->capacity, p->size);
+		 */
 		if (p->offset + len < p->capacity) {
 			/* There's enough space */
 			memcpy(p->data + p->offset, gs16,
@@ -127,8 +134,11 @@ int parcel_w_string(struct parcel *p, char *str)
 			p->offset += padded;
 			p->size += padded;
 			if (padded != len) {
-				DBG("Writing %d bytes, padded to %d",
-							len, padded);
+				/*
+				 * TODO: make conditional:
+				 * DBG("Writing %d bytes, padded to %d",
+				 *	len, padded);
+				 */
 #if BYTE_ORDER == BIG_ENDIAN
 				static const uint32_t mask[4] = {
 					0x00000000, 0xffffff00,

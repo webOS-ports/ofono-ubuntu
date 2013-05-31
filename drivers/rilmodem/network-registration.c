@@ -36,12 +36,9 @@
 #include <ofono/modem.h>
 #include <ofono/netreg.h>
 
-#include "gril.h"
-
-#include "rilmodem.h"
-#include "parcel.h"
 #include "common.h"
-#include "parcel.h"
+#include "gril.h"
+#include "rilmodem.h"
 
 struct netreg_data {
 	GRil *ril;
@@ -102,7 +99,7 @@ static void ril_creg_cb(struct ril_msg *message, gpointer user_data)
 	decode_ril_error(&error, "OK");
 
 	if (ril_util_parse_reg(message, &status,
-				&lac, &ci, &tech) == FALSE) {
+				&lac, &ci, &tech, NULL) == FALSE) {
 		CALLBACK_WITH_FAILURE(cb, -1, -1, -1, -1, cbd->data);
 		return;
 	}
@@ -301,6 +298,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 
 		extract_mcc_mnc(numeric, list[i].mcc, list[i].mnc);
 
+		/* FIXME: need to fix this for CDMA */
 		/* Use GSM as default, as RIL doesn't pass that info to us */
 		list[i].tech = ACCESS_TECHNOLOGY_GSM;
 
