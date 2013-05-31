@@ -10,6 +10,7 @@ ofono (1.12phablet3) UNRELEASED; urgency=low
 
 ofono (1.12phablet2) raring; urgency=low
 
+  [ Tony Espy ]
   * [ril/rilmodem] Initial SIM support, includes:
    - read filesystem support
    - proper modem initialization
