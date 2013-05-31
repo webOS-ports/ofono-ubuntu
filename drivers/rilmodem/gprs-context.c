@@ -71,7 +71,7 @@ struct gprs_context_data {
 };
 
 /* TODO: make conditional */
-static char printBuf[PRINTBUF_SIZE];
+static char print_buf[PRINT_BUF_SIZE];
 
 static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 						gpointer user_data)
@@ -123,12 +123,11 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct ofono_error error;
 	struct parcel rilp;
-	gchar **dns_addresses = NULL;
 	int status, retry_time, cid, active, num, version;
-	char *type, *ifname, *raw_ip_addrs, *dnses, *raw_gws;
-	char **split_ip_addr = NULL;
-	char **ip_addrs = NULL;
-	char **gateways = NULL;
+	char *dnses = NULL, *ifname = NULL;
+	char *raw_ip_addrs = NULL, *raw_gws = NULL, *type = NULL;
+	char **dns_addresses = NULL, **gateways = NULL;
+	char **ip_addrs = NULL, **split_ip_addr = NULL;
 
 	/* TODO:
 	 * Cleanup duplicate code between this function and
@@ -138,6 +137,7 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	/* valid size: 36 (34 if HCRADIO defined) */
 	if (message->buf_len < 36) {
 		DBG("Parcel is less then minimum DataCallResponseV6 size!");
+		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
 
@@ -148,20 +148,18 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	/* TODO: make conditional */
-	appendPrintBuf("[%04d]< %s",
-			message->serial_no,
-			ril_request_id_to_string(message->req));
-	startResponse;
-	/* TODO: make conditional */
-
 	ril_util_init_parcel(message, &rilp);
 
-	/* RIL version */
+	/*
+	 * ril.h documents the reply to a RIL_REQUEST_SETUP_DATA_CALL
+	 * as being a RIL_Data_Call_Response_v6 struct, however in
+	 * reality, the response actually includes the version of the
+	 * struct, followed by an array of calls, so the array size
+	 * also has to be read after the version.
+	 *
+	 * TODO: What if there's more than 1 call in the list??
+	 */
 	version = parcel_r_int32(&rilp);
-
-	/* Size of call list */
-	/* TODO: What if there's more than 1 call in the list?? */
 	num = parcel_r_int32(&rilp);
 
 	status = parcel_r_int32(&rilp);
@@ -176,13 +174,18 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	raw_gws = parcel_r_string(&rilp);
 
 	/* TODO: make conditional */
-	appendPrintBuf("%sversion=%d,num=%d",
-			printBuf,
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+	ril_start_response;
+
+	ril_append_print_buf("%sversion=%d,num=%d",
+			print_buf,
 			version,
 			num);
 
-	appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
-			printBuf,
+	ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+			print_buf,
 			status,
 			retry_time,
 			cid,
@@ -192,8 +195,8 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 			raw_ip_addrs,
 			dnses,
 			raw_gws);
-	closeResponse;
-	printResponse;
+	ril_close_response;
+	ril_print_response;
 	/* TODO: make conditional */
 
 	if (status != 0) {
@@ -225,7 +228,8 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	 */
 	ip_addrs = g_strsplit(raw_ip_addrs, " ", 3);
 	if (ip_addrs[0] == NULL) {
-		DBG("Invalid IP address field returned: %s", raw_ip_addrs);
+		DBG("No IP address specified: %s", raw_ip_addrs);
+		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
 
@@ -239,8 +243,8 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	 */
 	split_ip_addr = g_strsplit(ip_addrs[0], "/", 2);
 	if (split_ip_addr[0] == NULL) {
-		ofono_error("Invalid IP address; can't strip prefix: %s",
-				ip_addrs[0]);
+		DBG("Invalid IP address field returned: %s", raw_ip_addrs);
+		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
 
@@ -253,6 +257,7 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	gateways = g_strsplit(raw_gws, " ", 3);
 	if (gateways[0] == NULL) {
 		DBG("Invalid gateways field returned: %s", raw_gws);
+		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
 
@@ -262,6 +267,10 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	dns_addresses = g_strsplit(dnses, " ", 3);
 	ofono_gprs_context_set_ipv4_dns_servers(gc,
 						(const char **) dns_addresses);
+
+	decode_ril_error(&error, "OK");
+
+error:
 	g_strfreev(dns_addresses);
 	g_strfreev(ip_addrs);
 	g_strfreev(split_ip_addr);
@@ -273,10 +282,6 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	g_free(dnses);
 	g_free(raw_gws);
 
-	CALLBACK_WITH_SUCCESS(cb, cbd->data);
-	return;
-
-error:
 	cb(&error, cbd->data);
 }
 
@@ -287,16 +292,10 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
-	guchar profile[5] = { 0x00 };
 	gchar *protocol = PROTO_IP;
 	gchar tech[3];
 	int request = RIL_REQUEST_SETUP_DATA_CALL;
 	int ret;
-
-        /* TODO: make conditional */
-	clearPrintBuf;
-	startRequest;
-        /* TODO: make conditional */
 
 	cbd->user = gc;
 	gcd->active_ctx_cid = ctx->cid;
@@ -351,13 +350,21 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	case OFONO_GPRS_PROTO_IP:
 		break;
 	default:
-		DBG("Invalid protocol");
+		DBG("Invalid protocol: %d", ctx->proto);
 	}
 
 	parcel_w_string(&rilp, protocol);
 
-	appendPrintBuf("%s %s,%s,%s,%s,%s,%s,%s",
-			printBuf,
+	ret = g_ril_send(gcd->ril,
+				request,
+				rilp.data,
+				rilp.size,
+				ril_setup_data_call_cb, cbd, g_free);
+
+        /* TODO: make conditional */
+	ril_start_request;
+	ril_append_print_buf("%s %s,%s,%s,%s,%s,%s,%s",
+			print_buf,
 			tech,
 			DATA_PROFILE_DEFAULT,
 			ctx->apn,
@@ -366,15 +373,8 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 			CHAP_PAP_OK,
 			protocol);
 
-	ret = g_ril_send(gcd->ril,
-				request,
-				rilp.data,
-				rilp.size,
-				ril_setup_data_call_cb, cbd, g_free);
-
-	/* TODO: make conditional */
-	closeRequest;
-	printRequest(ret, request);
+	ril_close_request;
+	ril_print_request(ret, request);
 	/* TODO: make conditional */
 
 	parcel_free(&rilp);
@@ -397,9 +397,13 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	/* Reply has no data... */
 
 	if (message->error == RIL_E_SUCCESS) {
-		appendPrintBuf("[%04d]< %s",
+
+		/* TODO: make conditional */
+		ril_append_print_buf("[%04d]< %s",
 				message->serial_no,
 				ril_request_id_to_string(message->req));
+		ril_print_response;
+		/* TODO: make conditional */
 
 		gcd->state = STATE_IDLE;
 		CALLBACK_WITH_SUCCESS(cb, cbd->data);
@@ -445,8 +449,8 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 				ril_deactivate_data_call_cb, cbd, g_free);
 
 	/* TODO: make conditional */
-	clearPrintBuf;
-	printRequest(ret, request);
+	ril_clear_print_buf;
+	ril_print_request(ret, request);
 	/* TODO: make conditional */
 
 	parcel_free(&rilp);

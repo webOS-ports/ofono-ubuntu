@@ -68,7 +68,7 @@ struct gprs_data {
 };
 
 /* TODO: make conditional */
-static char printBuf[PRINTBUF_SIZE];
+static char print_buf[PRINT_BUF_SIZE];
 
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 						ofono_gprs_status_cb_t cb,
@@ -160,6 +160,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 				ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
 		error.error = message->error;
+		status = -1;
 		goto error;
 	}
 
@@ -167,6 +168,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 				&lac, &ci, &tech, &max_cids) == FALSE) {
 		ofono_error("Failure parsing data registration response.");
 		decode_ril_error(&error, "FAIL");
+		status = -1;
 		goto error;
 	}
 
@@ -192,13 +194,9 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	gd->status = status;
 	gd->tech = tech;
 
-	if (cb)
-		cb(&error, status, cbd->data);
-	return;
-
 error:
 	if (cb)
-		cb(&error, -1, cbd->data);
+		cb(&error, status, cbd->data);
 }
 
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
@@ -214,8 +212,8 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 	ret = g_ril_send(gd->ril, RIL_REQUEST_DATA_REGISTRATION_STATE,
 				NULL, 0, ril_data_reg_cb, cbd, g_free);
 
-	clearPrintBuf;
-	printRequest(ret, RIL_REQUEST_DATA_REGISTRATION_STATE);
+	ril_clear_print_buf;
+	ril_print_request(ret, RIL_REQUEST_DATA_REGISTRATION_STATE);
 
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");

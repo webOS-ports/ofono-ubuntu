@@ -64,7 +64,7 @@
 /* FID/path of SIM/USIM root directory */
 #define ROOTMF "3F00"
 
-static char printBuf[PRINTBUF_SIZE];
+static char print_buf[PRINT_BUF_SIZE];
 
 /*
  * TODO: CDMA/IMS
@@ -118,8 +118,8 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		DBG("len > 0");
 
 		/* TODO: make conditional */
-		appendPrintBuf("%spath=%s,",
-				printBuf,
+		ril_append_print_buf("%spath=%s,",
+				print_buf,
 				hex_path);
 		/* TODO: make conditional */
 
@@ -138,8 +138,8 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		parcel_w_string(rilp, (char *) ROOTMF);
 
 		/* TODO: make conditional */
-		appendPrintBuf("%spath=%s,",
-				printBuf,
+		ril_append_print_buf("%spath=%s,",
+				print_buf,
 				ROOTMF);
 		/* TODO: make conditional */
 	} else {
@@ -244,10 +244,9 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	parcel_w_int32(&rilp, fileid);
 
         /* TODO: make conditional */
-	clearPrintBuf;
-	startRequest;
-	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
-			printBuf,
+	ril_start_request;
+	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
+			print_buf,
 			CMD_GET_RESPONSE,
 			fileid);
 	/* TODO: make conditional */
@@ -270,23 +269,25 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
-	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			printBuf,
+	ret = g_ril_send(sd->ril,
+				RIL_REQUEST_SIM_IO,
+				rilp.data,
+				rilp.size,
+				ril_file_info_cb, cbd, g_free);
+
+	/* TODO: make conditional */
+	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			print_buf,
 			0,
 			0,
 			15,
 			NULL,
 			NULL,
 			sd->app_id);
-	closeRequest;
-	/* TODO: make conditional */
 
-	ret = g_ril_send(sd->ril,
-				RIL_REQUEST_SIM_IO,
-				rilp.data,
-				rilp.size,
-				ril_file_info_cb, cbd, g_free);
-	printRequest(ret, RIL_REQUEST_SIM_IO);
+	ril_close_request;
+	ril_print_request(ret, RIL_REQUEST_SIM_IO);
+	/* TODO: make conditional */
 
 	parcel_free(&rilp);
 
@@ -346,10 +347,9 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 		fileid, path);
 
         /* TODO: make conditional */
-	clearPrintBuf;
-	startRequest;
-	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
-			printBuf,
+	ril_start_request;
+	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
+			print_buf,
 			CMD_READ_BINARY,
 			fileid);
 	/* TODO: make conditional */
@@ -367,23 +367,25 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, NULL);          /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id);    /* AID (Application ID) */
 
-	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			printBuf,
+	ret = g_ril_send(sd->ril,
+				RIL_REQUEST_SIM_IO,
+				rilp.data,
+				rilp.size,
+				ril_file_io_cb, cbd, g_free);
+
+	/* TODO: make conditional */
+	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			print_buf,
 			(start >> 8),
 			(start & 0xff),
 			length,
 			NULL,
 			NULL,
 			sd->app_id);
-	closeRequest;
-	/* TODO: make conditional */
 
-	ret = g_ril_send(sd->ril,
-				RIL_REQUEST_SIM_IO,
-				rilp.data,
-				rilp.size,
-				ril_file_io_cb, cbd, g_free);
-	printRequest(ret, RIL_REQUEST_SIM_IO);
+	ril_close_request;
+	ril_print_request(ret, RIL_REQUEST_SIM_IO);
+	/* TODO: make conditional */
 
 	parcel_free(&rilp);
 
@@ -404,10 +406,9 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	int ret;
 
         /* TODO: make conditional */
-	clearPrintBuf;
-	startRequest;
-	appendPrintBuf("%scmd=0x%.2X,efid=0x%.4X,",
-			printBuf,
+	ril_start_request;
+	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
+			print_buf,
 			CMD_GET_RESPONSE,
 			fileid);
 	/* TODO: make conditional */
@@ -425,24 +426,24 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, NULL);       /* pin2; only req'd for writes */
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
-	appendPrintBuf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			printBuf,
-			record,
-			4,
-			length,
-			NULL,
-			NULL,
-			sd->app_id);
-	closeRequest;
-	/* TODO: make conditional */
-
 	ret = g_ril_send(sd->ril,
 				RIL_REQUEST_SIM_IO,
 				rilp.data,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
 
-	printRequest(ret, RIL_REQUEST_SIM_IO);
+	/* TODO: make conditional */
+	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+			print_buf,
+			record,
+			4,
+			length,
+			NULL,
+			NULL,
+			sd->app_id);
+	ril_close_request;
+	ril_print_request(ret, RIL_REQUEST_SIM_IO);
+	/* TODO: make conditional */
 
 	parcel_free(&rilp);
 
@@ -470,14 +471,6 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 		return;
 	}
 
-	/* TODO: make conditional */
-	appendPrintBuf("[%04d]< %s",
-			message->serial_no,
-			ril_request_id_to_string(message->req));
-
-	startResponse;
-	/* TODO: make conditional */
-
 	ril_util_init_parcel(message, &rilp);
 
         /* 15 is the max length of IMSI
@@ -486,11 +479,18 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 	imsi = parcel_r_string(&rilp);
 
 	/* TODO: make conditional */
-	appendPrintBuf("%s%s",
-			printBuf,
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+
+	ril_start_response;
+
+	ril_append_print_buf("%s%s",
+			print_buf,
 			imsi);
-	closeResponse;
-	printResponse;
+
+	ril_close_response;
+	ril_print_response;
 	/* TODO: make conditional */
 
 	cb(&error, imsi, cbd->data);
@@ -507,20 +507,21 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 
 	DBG("");
 
-	startRequest;
-
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);            /* Number of params */
 	parcel_w_string(&rilp, sd->app_id);  /* AID (Application ID) */
 
-	appendPrintBuf("%s%s", printBuf, sd->app_id);
-
 	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_IMSI,
 				rilp.data, rilp.size, ril_imsi_cb, cbd, g_free);
-	parcel_free(&rilp);
 
-	closeRequest;
-	printRequest(ret, RIL_REQUEST_GET_IMSI);
+	/* TODO: make conditional */
+	ril_start_request;
+	ril_append_print_buf("%s%s", print_buf, sd->app_id);
+	ril_close_request;
+	ril_print_request(ret, RIL_REQUEST_GET_IMSI);
+	/* TODO: make conditional */
+
+	parcel_free(&rilp);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -554,11 +555,13 @@ static int send_get_sim_status(struct ofono_sim *sim)
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	int ret;
 
-	clearPrintBuf;
-
 	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_SIM_STATUS,
 				NULL, 0, sim_status_cb, sim, NULL);
-	printRequest(ret, RIL_REQUEST_GET_SIM_STATUS);
+
+	/* TODO: make conditional */
+	ril_clear_print_buf;
+	ril_print_request(ret, RIL_REQUEST_GET_SIM_STATUS);
+	/* TODO: make conditional */
 
 	return ret;
 }
@@ -653,7 +656,6 @@ void ril_sim_init(void)
 {
 	DBG("");
 	ofono_sim_driver_register(&driver);
-	clearPrintBuf;
 }
 
 void ril_sim_exit(void)

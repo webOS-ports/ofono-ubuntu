@@ -30,21 +30,21 @@
  *
  *  $AOSP/hardware/ril/libril/ril.cpp
  */
-#define startRequest           sprintf(printBuf, "(")
-#define closeRequest           sprintf(printBuf, "%s)", printBuf)
-#define printRequest(token, req)           \
-        ofono_debug("[%04d]> %s %s", token, ril_request_id_to_string(req), printBuf)
+#define ril_start_request           sprintf(print_buf, "(")
+#define ril_close_request           sprintf(print_buf, "%s)", print_buf)
+#define ril_print_request(token, req)           \
+        ofono_debug("[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
 
-#define startResponse           sprintf(printBuf, "%s {", printBuf)
-#define closeResponse           sprintf(printBuf, "%s}", printBuf)
-#define printResponse           ofono_debug("%s", printBuf)
+#define ril_start_response          sprintf(print_buf, "%s {", print_buf)
+#define ril_close_response          sprintf(print_buf, "%s}", print_buf)
+#define ril_print_response          ofono_debug("%s", print_buf)
 
-#define clearPrintBuf           printBuf[0] = 0
-#define removeLastChar          printBuf[strlen(printBuf)-1] = 0
-#define appendPrintBuf(x...)    sprintf(printBuf, x)
+#define ril_clear_print_buf         print_buf[0] = 0
+#define ril_remove_last_char        print_buf[strlen(print_buf)-1] = 0
+#define ril_append_print_buf(x...)  sprintf(print_buf, x)
 
 // request, response, and unsolicited msg print macro
-#define PRINTBUF_SIZE 8096
+#define PRINT_BUF_SIZE 8096
 
 /* TODO: create a table lookup*/
 #define PREFIX_30_NETMASK "255.255.255.252"

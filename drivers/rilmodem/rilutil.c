@@ -51,7 +51,7 @@ struct ril_util_sim_state_query {
 };
 
 /* TODO: make conditional */
-static char printBuf[PRINTBUF_SIZE];
+static char print_buf[PRINT_BUF_SIZE];
 
 static gboolean cpin_check(gpointer userdata);
 
@@ -284,25 +284,28 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 	int num, i, version;
 	gchar *number, *name;
 
-	/* TODO: make conditional */
-	appendPrintBuf("[%04d]< %s",
-			message->serial_no,
-			ril_unsol_request_to_string(message->req));
-
-	startResponse;
-	/* TODO: make conditional */
-
 	ril_util_init_parcel(message, &rilp);
 
-	/* RIL version */
+	/*
+	 * ril.h documents the reply to a RIL_REQUEST_DATA_CALL_LIST
+	 * as being an array of  RIL_Data_Call_Response_v6 structs,
+	 * however in reality, the response also includes a version
+	 * to start.
+	 */
 	version = parcel_r_int32(&rilp);
 
-	/* Number of RIL_Call structs */
+	/* Number of calls */
 	num = parcel_r_int32(&rilp);
 
 	/* TODO: make conditional */
-	appendPrintBuf("%sversion=%d,num=%d",
-			printBuf,
+	ril_append_print_buf("[%04d]< %s",
+				message->serial_no,
+				ril_unsol_request_to_string(message->req));
+
+	ril_start_response;
+
+	ril_append_print_buf("%sversion=%d,num=%d",
+			print_buf,
 			version,
 			num);
 	/* TODO: make conditional */
@@ -327,9 +330,8 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 		/* TODO: figure out how to line-wrap properly
 		 * without introducing spaces in string.
 		 */
-		appendPrintBuf("%s [status=%d,retry=%d,cid=%d,active=%d\
-                      type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
-				printBuf,
+		ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+				print_buf,
 				call->status,
 				call->retry,
 				call->cid,
@@ -344,8 +346,8 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
 	}
 
-	closeResponse;
-	printResponse;
+	ril_close_response;
+	ril_print_response;
 	/* TODO: make conditional */
 
 	return l;
@@ -371,13 +373,6 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 
 	DBG("message->buf_len is: %d", message->buf_len);
 
-	/* TODO: make conditional */
-	appendPrintBuf("[%04d]< %s",
-			message->serial_no,
-			ril_request_id_to_string(message->req));
-	startResponse;
-	/* TODO: make conditional */
-
 	ril_util_init_parcel(message, &rilp);
 
 	*sw1 = parcel_r_int32(&rilp);
@@ -392,13 +387,17 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	}
 
 	/* TODO: make conditional */
-	appendPrintBuf("%ssw1=0x%.2X,sw2=0x%.2X,%s",
-		       printBuf,
+	ril_append_print_buf("[%04d]< %s",
+			message->serial_no,
+			ril_request_id_to_string(message->req));
+	ril_start_response;
+	ril_append_print_buf("%ssw1=0x%.2X,sw2=0x%.2X,%s",
+		       print_buf,
 			*sw1,
 			*sw2,
 			response);
-	closeResponse;
-	printResponse;
+	ril_close_response;
+	ril_print_response;
 	/* TODO: make conditional */
 
 	g_free(response);
@@ -414,7 +413,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
 	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
 
-	appendPrintBuf("[%04d]< %s",
+	ril_append_print_buf("[%04d]< %s",
 			message->serial_no,
 			ril_request_id_to_string(message->req));
 
@@ -450,15 +449,15 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	ims_index = parcel_r_int32(&rilp);
 	num_apps = parcel_r_int32(&rilp);
 
-        startResponse;
+        ril_start_response;
 
 	/* TODO:
-	 * How do we handle long (>80 chars) appendPrintBuf strings?
+	 * How do we handle long (>80 chars) ril_append_print_buf strings?
 	 * Using line wrapping ( via '\' ) introduces spaces in the output.
 	 * Do we just make a style-guide exception for PrintBuf operations?
 	 */
-	appendPrintBuf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
-		       printBuf,
+	ril_append_print_buf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
+		       print_buf,
 		       card_state,
 		       pin_state,
 		       gsm_umts_index,
@@ -480,8 +479,8 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-		appendPrintBuf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
-				printBuf,
+		ril_append_print_buf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+				print_buf,
 				app_type,
 				app_state,
 				perso_substate,
@@ -505,8 +504,8 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		g_free(app_str);
 	}
 
-	closeResponse;
-	printResponse;
+	ril_close_response;
+	ril_print_response;
 
 	if (card_state == RIL_CARDSTATE_PRESENT)
 		result = TRUE;
@@ -526,11 +525,11 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 
 
 	/* TODO: make conditional */
-	appendPrintBuf("[%04d]< %s",
+	ril_append_print_buf("[%04d]< %s",
 			message->serial_no,
 			ril_request_id_to_string(message->req));
 
-	startResponse;
+	ril_start_response;
 	/* TODO: make conditional */
 
 	/* FIXME: need minimum message size check FIRST!!! */
@@ -575,16 +574,16 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 	}
 
 	/* TODO: make conditional */
-	appendPrintBuf("%s%s,%s,%s,%s,%s,%s",
-			printBuf,
+	ril_append_print_buf("%s%s,%s,%s,%s,%s,%s",
+			print_buf,
 			sstatus,
 			slac,
 			sci,
 			stech,
 			sreason,
 			smax);
-	closeResponse;
-	printResponse;
+	ril_close_response;
+	ril_print_response;
 	/* TODO: make conditional */
 
 	if (status) {
