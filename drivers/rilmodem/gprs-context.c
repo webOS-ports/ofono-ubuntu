@@ -44,7 +44,8 @@
 #include "rilmodem.h"
 
 /* REQUEST_DEACTIVATE_DATA_CALL parameter values */
-#define DEACTIVATE_DATA_CALL_PARAMS 2
+#define DEACTIVATE_DATA_CALL_NUM_PARAMS 2
+#define DEACTIVATE_DATA_CALL_NO_REASON "0"
 
 /* REQUEST_SETUP_DATA_CALL parameter values */
 #define SETUP_DATA_CALL_PARAMS 7
@@ -83,6 +84,8 @@ static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 	gboolean disconnect = FALSE;
 	GSList *calls = NULL, *iterator = NULL;
 
+	DBG("");
+
 	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
 		ofono_error("ril_gprs_update_calls: invalid message received %d",
 				message->req);
@@ -91,6 +94,8 @@ static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 
 	calls = ril_util_parse_data_call_list(message);
 
+	DBG("number of call in call_list_changed is: %d", g_slist_length(calls));
+
 	for (iterator = calls; iterator; iterator = iterator->next) {
 		call = (struct data_call *) iterator->data;
 
@@ -98,17 +103,22 @@ static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 			DBG("Found current call in call list: %d", call->cid);
 			active_cid_found = TRUE;
 
-			if (call->status == 0) {
+			if (call->active == 0) {
+				DBG("call->status is DISCONNECTED for cid: %d", call->cid);
 				disconnect = TRUE;
+				ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid);
 			}
+
+			break;
 		}
 	}
 
 	if (disconnect || active_cid_found == FALSE) {
+		DBG("Clearing active context");
+
 		gcd->active_ctx_cid = -1;
 		gcd->active_rild_cid = -1;
 		gcd->state = STATE_IDLE;
-		ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid);
 	}
 
 	g_slist_foreach(calls, (GFunc) g_free, NULL);
@@ -394,8 +404,9 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct ofono_error error;
 
-	/* Reply has no data... */
+	DBG("");
 
+	/* Reply has no data... */
 	if (message->error == RIL_E_SUCCESS) {
 
 		/* TODO: make conditional */
@@ -425,6 +436,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
+	gchar *cid = NULL;
 	int request = RIL_REQUEST_DEACTIVATE_DATA_CALL;
 	int ret;
 
@@ -433,14 +445,16 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 	gcd->state = STATE_DISABLING;
 
 	parcel_init(&rilp);
-	parcel_w_int32(&rilp, DEACTIVATE_DATA_CALL_PARAMS);
-	parcel_w_int32(&rilp, gcd->active_rild_cid);
+	parcel_w_int32(&rilp, DEACTIVATE_DATA_CALL_NUM_PARAMS);
+
+	cid = g_strdup_printf("%d", gcd->active_rild_cid);
+	parcel_w_string(&rilp, cid);
 
 	/*
 	 * TODO: airplane-mode; change reason to '1',
 	 * which means "radio power off".
 	 */
-	parcel_w_int32(&rilp, 0);
+	parcel_w_string(&rilp, DEACTIVATE_DATA_CALL_NO_REASON);
 
 	ret = g_ril_send(gcd->ril,
 				request,
@@ -449,11 +463,18 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 				ril_deactivate_data_call_cb, cbd, g_free);
 
 	/* TODO: make conditional */
-	ril_clear_print_buf;
+	ril_start_request;
+	ril_append_print_buf("%s%s,0",
+				print_buf,
+				cid);
+
+	ril_close_request;
 	ril_print_request(ret, request);
 	/* TODO: make conditional */
 
 	parcel_free(&rilp);
+	g_free(cid);
+
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_DEACTIVATE_DATA_CALL failed.");
 		g_free(cbd);
