@@ -1,4 +1,4 @@
-ofono (1.12phablet3) UNRELEASED; urgency=low
+ofono (1.12phablet3) raring; urgency=low
 
   [ Tony Espy ]
   * [ril/rilmodem] Initial support for mobile data (GPRS).
@@ -6,7 +6,7 @@ ofono (1.12phablet3) UNRELEASED; urgency=low
   [ Sergio Schvezov ]
   * Adding test and maintenance scripts ofono-scripts binary package.
 
- -- Sergio Schvezov <sergio.schvezov@canonical.com>  Thu, 30 May 2013 17:10:33 -0300
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Fri, 31 May 2013 18:48:06 -0300
 
 ofono (1.12phablet2) raring; urgency=low
 
