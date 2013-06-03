@@ -1,3 +1,9 @@
+ofono (1.12phablet4) saucy; urgency=low
+
+  * Building for saucy.
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Mon, 03 Jun 2013 18:54:52 -0300
+
 ofono (1.12phablet3) raring; urgency=low
 
   [ Tony Espy ]
