@@ -333,10 +333,10 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 	for (i = 0; i < count; i++) {
 		req = g_queue_peek_nth(p->command_queue, i);
 
-		/* TODO: make conditional
-		 * DBG("comparing req->id: %d to message->serial_no: %d",
-		 *	req->id, message->serial_no);
-		 */
+#ifdef GRIL_DEBUG
+		DBG("comparing req->id: %d to message->serial_no: %d",
+			req->id, message->serial_no);
+#endif
 
 		if (req->id == message->serial_no) {
 			found = TRUE;
@@ -564,18 +564,17 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 	p->in_read_handler = TRUE;
 
-	/*
-	 * TODO: make conditional
-	 *	DBG("len: %d, wrap: %d", len, wrap);
-	 */
+#ifdef GRIL_DEBUG
+	DBG("len: %d, wrap: %d", len, wrap);
+#endif
+
 	while (p->suspended == FALSE && (p->read_so_far < len)) {
 		gsize rbytes = MIN(len - p->read_so_far, wrap - p->read_so_far);
 
 		if (rbytes < 4) {
-			/*
-			 * TODO: make conditional
-			 * DBG("Not enough bytes for header length: len: %d", len);
-			 */
+#ifdef GRIL_DEBUG
+			DBG("Not enough bytes for header length: len: %d", len);
+#endif
 			return;
 		}
 
@@ -590,9 +589,9 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 		/* wait for the rest of the record... */
 		if (message == NULL) {
 
-			/* TODO: make conditional
-			 * DBG("Not enough bytes for fixed record");
-			 */
+#ifdef GRIL_DEBUG
+			DBG("Not enough bytes for fixed record");
+#endif
 			break;
 		}
 
@@ -639,10 +638,10 @@ static gboolean can_write_data(gpointer data)
 
 	len = req->data_len;
 
-	/*
-	 * TODO: make conditional:
-	 * DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
-	 */
+
+#ifdef GRIL_DEBUG
+	 DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
+#endif
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
@@ -678,10 +677,9 @@ static gboolean can_write_data(gpointer data)
 					req->data + ril->req_bytes_written,
 					towrite);
 
-	/*
-	 * TODO: make conditional
-	 * DBG("bytes_written: %d", bytes_written);
-	 */
+#ifdef GRIL_DEBUG
+	DBG("bytes_written: %d", bytes_written);
+#endif
 
 	if (bytes_written == 0)
 		return FALSE;
@@ -1052,7 +1050,9 @@ guint g_ril_send(GRil *ril, const guint req, const char *data,
 	g_queue_push_tail(p->command_queue, r);
 
 	if (g_queue_get_length(p->command_queue) == 1) {
+#ifdef GRIL_DEBUG
 		DBG("calling wakeup_writer: qlen: %d", g_queue_get_length(p->command_queue));
+#endif
 		ril_wakeup_writer(p);
 	}
 
