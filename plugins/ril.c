@@ -69,7 +69,9 @@ struct ril_data {
 	ofono_bool_t reported;
 };
 
+#ifdef RIL_DEBUG_TRACE
 static char print_buf[PRINT_BUF_SIZE];
+#endif
 
 static gboolean power_on(gpointer user_data);
 
@@ -105,6 +107,8 @@ static gboolean power_on(gpointer user_data)
 	struct ofono_modem *modem = user_data;
 	struct parcel rilp;
 	struct ril_data *ril = ofono_modem_get_data(modem);
+	int request = RIL_REQUEST_RADIO_POWER;
+	guint ret;
 
 	DBG("");
 
@@ -112,8 +116,13 @@ static gboolean power_on(gpointer user_data)
 	parcel_w_int32(&rilp, 1); /* size of array */
 	parcel_w_int32(&rilp, 1); /* POWER=ON */
 
-	g_ril_send(ril->modem, RIL_REQUEST_RADIO_POWER,
-			rilp.data, rilp.size, power_cb, modem, NULL);
+	ret = g_ril_send(ril->modem, request,
+				rilp.data, rilp.size, power_cb, modem, NULL);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(1)");
+	ril_print_request(ret, request);
+#endif
 
 	parcel_free(&rilp);
 
@@ -144,15 +153,15 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 static int send_get_sim_status(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
-	int ret;
+	int request = RIL_REQUEST_GET_SIM_STATUS;
+	guint ret;
 
-	ret = g_ril_send(ril->modem, RIL_REQUEST_GET_SIM_STATUS,
+	ret = g_ril_send(ril->modem, request,
 				NULL, 0, sim_status_cb, modem, NULL);
 
-	/* TODO: make conditional */
-	ril_clear_print_buf;
-	ril_print_request(ret, RIL_REQUEST_GET_SIM_STATUS);
-	/* TODO: make conditional */
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 
 	return ret;
 }
@@ -266,12 +275,12 @@ static int ril_enable(struct ofono_modem *modem)
 
         ril->modem = g_ril_new();
 
-        /* NOTE: Since AT modems open a tty, and then call 
+        /* NOTE: Since AT modems open a tty, and then call
 	 * g_at_chat_new(), they're able to return -EIO if
 	 * the first fails, and -ENOMEM if the second fails.
 	 * in our case, we already return -EIO if the ril_new
 	 * fails.  If this is important, we can create a ril_socket
-	 * abstraction... ( probaby not a bad idea ). 
+	 * abstraction... ( probaby not a bad idea ).
 	 */
 
         if (ril->modem == NULL) {
@@ -332,7 +341,7 @@ static int ril_init(void)
 	struct ofono_modem *modem;
 
 	DBG("ofono_modem_register returned: %d", retval);
-        
+
 	if ((retval = ofono_modem_driver_register(&ril_driver))) {
 		DBG("ofono_modem_driver_register returned: %d", retval);
                 return retval;
@@ -386,4 +395,4 @@ static void ril_exit(void)
 
 OFONO_PLUGIN_DEFINE(ril, "RIL modem driver", VERSION,
 			OFONO_PLUGIN_PRIORITY_DEFAULT, ril_init, ril_exit)
- 
+

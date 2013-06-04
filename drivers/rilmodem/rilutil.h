@@ -34,10 +34,17 @@
 #define ril_close_request           sprintf(print_buf, "%s)", print_buf)
 #define ril_print_request(token, req)           \
         ofono_debug("[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
+#define ril_print_request_no_args(token, req)	\
+        ofono_debug("[%04d]> %s", token, ril_request_id_to_string(req))
 
-#define ril_start_response          sprintf(print_buf, "%s {", print_buf)
+#define ril_start_response          sprintf(print_buf, "{")
 #define ril_close_response          sprintf(print_buf, "%s}", print_buf)
-#define ril_print_response          ofono_debug("%s", print_buf)
+#define ril_print_response(message)           \
+        ofono_debug("[%04d]< %s %s", message->serial_no, \
+			ril_request_id_to_string(message->req), print_buf)
+#define ril_print_response_no_args(message)           \
+        ofono_debug("[%04d]< %s", message->serial_no, \
+			ril_request_id_to_string(message->req))
 
 #define ril_clear_print_buf         print_buf[0] = 0
 #define ril_remove_last_char        print_buf[strlen(print_buf)-1] = 0

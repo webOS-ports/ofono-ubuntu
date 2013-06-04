@@ -48,6 +48,10 @@ struct cv_data {
 	unsigned int vendor;
 };
 
+#ifdef RIL_DEBUG_TRACE
+static char print_buf[PRINT_BUF_SIZE];
+#endif
+
 static void volume_mute_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
@@ -58,6 +62,11 @@ static void volume_mute_cb(struct ril_msg *message, gpointer user_data)
 
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
+
+#ifdef RIL_DEBUG_TRACE
+		ril_print_response_no_args(message);
+#endif
+
 	} else {
 		ofono_error("Could not set the ril mute state");
 		decode_ril_error(&error, "FAIL");
@@ -72,17 +81,28 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 	struct cv_data *cvd = ofono_call_volume_get_data(cv);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
+	int request = RIL_REQUEST_SET_MUTE;
+	int ret;
 
 	DBG("");
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);
 	parcel_w_int32(&rilp, muted);
-	g_ril_send(cvd->ril, RIL_REQUEST_SET_MUTE, rilp.data,
+	ret = g_ril_send(cvd->ril, request, rilp.data,
 			rilp.size, volume_mute_cb, cbd, g_free);
 	parcel_free(&rilp);
 
-	return;
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%d)", muted);
+	ril_print_request(ret, request);
+#endif
+
+	if (ret <= 0) {
+		ofono_error("Send RIL_REQUEST_SET_MUTE failed.");
+		g_free(cbd);
+		CALLBACK_WITH_FAILURE(cb, data);
+	}
 }
 
 static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
@@ -98,14 +118,14 @@ static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 		return;
 	}
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
-
+	ril_util_init_parcel(message, &rilp);
 	muted = parcel_r_int32(&rilp);
 	DBG("Initial ril muted state: %d", muted);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("{%d}", muted);
+	ril_print_response(message);
+#endif
 
 	ofono_call_volume_set_muted(cv, muted);
 }
@@ -114,13 +134,15 @@ static void call_probe_mute(gpointer user_data)
 {
 	struct ofono_call_volume *cv = user_data;
 	struct cv_data *cvd = ofono_call_volume_get_data(cv);
+	int request = RIL_REQUEST_GET_MUTE;
+	int ret;
 
-	DBG("Requesting mute from RIL");
-
-	g_ril_send(cvd->ril, RIL_REQUEST_GET_MUTE, NULL, 0,
+	ret = g_ril_send(cvd->ril, request, NULL, 0,
 				probe_mute_cb, cv, NULL);
 
-	return;
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 }
 
 static gboolean ril_delayed_register(gpointer user_data)
@@ -179,7 +201,7 @@ static void ril_call_volume_remove(struct ofono_call_volume *cv)
 }
 
 static struct ofono_call_volume_driver driver = {
-	.name = "rilmodem",
+	.name = RILMODEM,
 	.probe = ril_call_volume_probe,
 	.remove = ril_call_volume_remove,
 	.mute = ril_call_volume_mute,

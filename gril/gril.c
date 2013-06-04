@@ -342,10 +342,13 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 			found = TRUE;
 			message->req = req->req;
 
-			DBG("RIL Reply: %s serial-no: %d errno: %s",
-				ril_request_id_to_string(message->req),
-				message->serial_no,
-				ril_error_to_string(message->error));
+#ifdef RIL_DEBUG_TRACE
+			if (message->error != RIL_E_SUCCESS)
+				DBG("[%04d]< %s failed %s",
+					message->serial_no,
+					ril_request_id_to_string(message->req),
+					ril_error_to_string(message->error));
+#endif
 
 			req = g_queue_pop_nth(p->command_queue, i);
 			if (req->callback)

@@ -71,8 +71,9 @@ struct gprs_context_data {
 	enum state state;
 };
 
-/* TODO: make conditional */
+#ifdef RIL_DEBUG_TRACE
 static char print_buf[PRINT_BUF_SIZE];
+#endif
 
 static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 						gpointer user_data)
@@ -183,18 +184,12 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	dnses = parcel_r_string(&rilp);
 	raw_gws = parcel_r_string(&rilp);
 
-	/* TODO: make conditional */
-	ril_append_print_buf("[%04d]< %s",
-			message->serial_no,
-			ril_request_id_to_string(message->req));
-	ril_start_response;
-
-	ril_append_print_buf("%sversion=%d,num=%d",
-			print_buf,
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("{version=%d,num=%d",
 			version,
 			num);
 
-	ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+	ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]}",
 			print_buf,
 			status,
 			retry_time,
@@ -205,9 +200,8 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 			raw_ip_addrs,
 			dnses,
 			raw_gws);
-	ril_close_response;
-	ril_print_response;
-	/* TODO: make conditional */
+	ril_print_response(message);
+#endif
 
 	if (status != 0) {
 		DBG("Reply failure; status %d", status);
@@ -371,10 +365,8 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_setup_data_call_cb, cbd, g_free);
 
-        /* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%s %s,%s,%s,%s,%s,%s,%s",
-			print_buf,
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%s,%s,%s,%s,%s,%s,%s)",
 			tech,
 			DATA_PROFILE_DEFAULT,
 			ctx->apn,
@@ -383,9 +375,8 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 			CHAP_PAP_OK,
 			protocol);
 
-	ril_close_request;
 	ril_print_request(ret, request);
-	/* TODO: make conditional */
+#endif
 
 	parcel_free(&rilp);
 	if (ret <= 0) {
@@ -409,12 +400,9 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	/* Reply has no data... */
 	if (message->error == RIL_E_SUCCESS) {
 
-		/* TODO: make conditional */
-		ril_append_print_buf("[%04d]< %s",
-				message->serial_no,
-				ril_request_id_to_string(message->req));
-		ril_print_response;
-		/* TODO: make conditional */
+#ifdef RIL_DEBUG_TRACE
+		ril_print_response_no_args(message);
+#endif
 
 		gcd->state = STATE_IDLE;
 		CALLBACK_WITH_SUCCESS(cb, cbd->data);
@@ -462,15 +450,10 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_deactivate_data_call_cb, cbd, g_free);
 
-	/* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%s%s,0",
-				print_buf,
-				cid);
-
-	ril_close_request;
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%s,0)", cid);
 	ril_print_request(ret, request);
-	/* TODO: make conditional */
+#endif
 
 	parcel_free(&rilp);
 	g_free(cid);
@@ -529,7 +512,7 @@ static void ril_gprs_context_remove(struct ofono_gprs_context *gc)
 }
 
 static struct ofono_gprs_context_driver driver = {
-	.name			= "rilmodem",
+	.name			= RILMODEM,
 	.probe			= ril_gprs_context_probe,
 	.remove			= ril_gprs_context_remove,
 	.activate_primary       = ril_gprs_context_activate_primary,

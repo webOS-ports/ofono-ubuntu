@@ -205,15 +205,17 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 {
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct cb_data *cbd = cb_data_new(cb, data);
+	int request = RIL_REQUEST_DATA_REGISTRATION_STATE;
 	guint ret;
 
 	cbd->user = gprs;
 
-	ret = g_ril_send(gd->ril, RIL_REQUEST_DATA_REGISTRATION_STATE,
+	ret = g_ril_send(gd->ril, request,
 				NULL, 0, ril_data_reg_cb, cbd, g_free);
 
-	ril_clear_print_buf;
-	ril_print_request(ret, RIL_REQUEST_DATA_REGISTRATION_STATE);
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");
