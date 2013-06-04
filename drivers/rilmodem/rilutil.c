@@ -365,11 +365,10 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	 * simResponse (string)
 	 */
 	if (message->buf_len < 12) {
-		DBG("message->buf_len < 12");
+		ofono_error("Invalid SIM IO reply: size too small (< 12): %d ",
+				message->buf_len);
 		return FALSE;
 	}
-
-	DBG("message->buf_len is: %d", message->buf_len);
 
 	ril_util_init_parcel(message, &rilp);
 
@@ -378,7 +377,6 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 
 	response = parcel_r_string(&rilp);
 	if (response) {
-		DBG("response is set; len is: %d", strlen(response));
 		hex_response = (char *) decode_hex((const char *) response,
 							strlen(response),
 							(long *) hex_len, -1);
@@ -566,7 +564,6 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 
 #ifdef RIL_DEBUG_TRACE
 	ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
-			print_buf,
 			sstatus,
 			slac,
 			sci,

@@ -100,8 +100,6 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	char *hex_path = NULL;
 	int len = 0;
 
-	DBG("");
-
 	if (path_len > 0 && path_len < 7) {
 		memcpy(db_path, path, path_len);
 		len = path_len;
@@ -110,14 +108,12 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	} else if (sd->app_type == RIL_APPTYPE_SIM) {
 		len = sim_ef_db_get_path_2g(fileid, db_path);
 	} else {
-		DBG("Unsupported app_type: 0%x", sd->app_type);
+		ofono_error("Unsupported app_type: 0%x", sd->app_type);
 	}
 
 	if (len > 0) {
 		hex_path = encode_hex(db_path, len, 0);
 		parcel_w_string(rilp, (char *) hex_path);
-
-		DBG("len > 0");
 
 #ifdef RIL_DEBUG_TRACE
 		ril_append_print_buf("%spath=%s,",
@@ -152,8 +148,6 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		 * 'parent3g' member.  This causes a NULL path to
 		 * be returned.
 		 */
-
-		DBG("db_get_path*() returned empty path.");
 		parcel_w_string(rilp, NULL);
 	}
 }
@@ -204,9 +198,6 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if (response_len) {
-		g_ril_util_debug_hexdump(FALSE, response, response_len,
-						sim_debug, "sim response: ");
-
 		if (response[0] == 0x62) {
 			ok = sim_parse_3g_get_response(response, response_len,
 							&flen, &rlen, &str, access, NULL);
