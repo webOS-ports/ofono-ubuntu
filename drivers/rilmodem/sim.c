@@ -85,13 +85,6 @@ struct sim_data {
 	guint app_type;
 };
 
-static void sim_debug(const gchar *str, gpointer user_data)
-{
-	const char *prefix = user_data;
-
-	ofono_info("%s%s", prefix, str);
-}
-
 static void set_path(struct sim_data *sd, struct parcel *rilp,
 			const int fileid, const guchar *path,
 			const guint path_len)
