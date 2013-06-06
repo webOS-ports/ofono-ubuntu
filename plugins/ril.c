@@ -63,7 +63,7 @@ struct ril_data {
 	const char *ifname;
 	GRil *modem;
 	int power_on_retries;
-
+	ofono_bool_t connected;
 	ofono_bool_t have_sim;
 	ofono_bool_t online;
 	ofono_bool_t reported;
@@ -256,6 +256,21 @@ static void ril_post_online(struct ofono_modem *modem)
 	ofono_netreg_create(modem, 0, "rilmodem", ril->modem);
 }
 
+static void ril_connected(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_modem *modem = (struct ofono_modem *) user_data;
+	struct ril_data *ril = ofono_modem_get_data(modem);
+
+	/* TODO: make conditional */
+        ofono_debug("[UNSOL]< %s", ril_unsol_request_to_string(message->req));
+	/* TODO: make conditional */
+
+	/* TODO: need a disconnect function to restart things! */
+	ril->connected = TRUE;
+
+	send_get_sim_status(modem);
+}
+
 static int ril_enable(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
@@ -284,7 +299,8 @@ static int ril_enable(struct ofono_modem *modem)
 		g_ril_set_debug(ril->modem, ril_debug, "Device: ");
 	}
 
-	send_get_sim_status(modem);
+	g_ril_register(ril->modem, RIL_UNSOL_RIL_CONNECTED,
+			ril_connected, modem);
 
         return -EINPROGRESS;
 }
@@ -332,7 +348,7 @@ static int ril_init(void)
 	struct ofono_modem *modem;
 
 	DBG("ofono_modem_register returned: %d", retval);
-        
+
 	if ((retval = ofono_modem_driver_register(&ril_driver))) {
 		DBG("ofono_modem_driver_register returned: %d", retval);
                 return retval;
@@ -350,7 +366,7 @@ static int ril_init(void)
 		return -ENODEV;
 	}
 
-	/* TODO: these are both placeholders; we should
+	/* Todo: these are both placeholders; we should
 	 * determine if they can be removed.
 	 */
 	ofono_modem_set_string(modem, "Interface", "ttys");
