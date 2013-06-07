@@ -398,11 +398,7 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 
 	g_hash_table_iter_init(&iter, p->notify_list);
 
-
-	/* Add logic to call cb if connected before register
-	   for CONNECTED happens */
-
-	if (message->req = RIL_UNSOL_RIL_CONNECTED) {
+	if (message->req == RIL_UNSOL_RIL_CONNECTED) {
 		p->connected = TRUE;
 	}
 
