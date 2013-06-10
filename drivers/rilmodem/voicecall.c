@@ -79,6 +79,10 @@ struct change_state_req {
 	int affected_types;
 };
 
+#ifdef RIL_DEBUG_TRACE
+static char print_buf[PRINT_BUF_SIZE];
+#endif
+
 static void audioflinger_set_call_mode()
 {
 	char parameter[20];
@@ -219,9 +223,13 @@ static gboolean poll_clcc(gpointer user_data)
 {
 	struct ofono_voicecall *vc = user_data;
 	struct voicecall_data *vd = ofono_voicecall_get_data(vc);
+	int request = RIL_REQUEST_GET_CURRENT_CALLS;
 
-	g_ril_send(vd->ril, RIL_REQUEST_GET_CURRENT_CALLS, NULL,
+	ret = g_ril_send(vd->ril, request, NULL,
 			0, clcc_poll_cb, vc, NULL);
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 
 	vd->clcc_source = 0;
 
@@ -233,6 +241,8 @@ static void generic_cb(struct ril_msg *message, gpointer user_data)
 	struct change_state_req *req = user_data;
 	struct voicecall_data *vd = ofono_voicecall_get_data(req->vc);
 	struct ofono_error error;
+	int request = RIL_REQUEST_GET_CURRENT_CALLS;
+	int ret;
 
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
@@ -241,6 +251,9 @@ static void generic_cb(struct ril_msg *message, gpointer user_data)
 		goto out;
 	}
 
+#ifdef RIL_DEBUG_TRACE
+	ril_print_response_no_args(message);
+#endif
 	if (req->affected_types) {
 		GSList *l;
 		struct ofono_call *call;
@@ -254,21 +267,26 @@ static void generic_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 out:
-	g_ril_send(vd->ril, RIL_REQUEST_GET_CURRENT_CALLS, NULL,
+	ret = g_ril_send(vd->ril, request, NULL,
 			0, clcc_poll_cb, req->vc, NULL);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 
 	/* We have to callback after we schedule a poll if required */
 	if (req->cb)
 		req->cb(&error, req->data);
 }
 
-static void ril_template(const guint rreq, struct ofono_voicecall *vc,
+static int ril_template(const guint rreq, struct ofono_voicecall *vc,
 			GRilResponseFunc func, unsigned int affected_types,
 			gpointer pdata, const gsize psize,
 			ofono_voicecall_cb_t cb, void *data)
 {
 	struct voicecall_data *vd = ofono_voicecall_get_data(vc);
 	struct change_state_req *req = g_try_new0(struct change_state_req, 1);
+	int ret;
 
 	if (req == NULL)
 		goto error;
@@ -278,14 +296,16 @@ static void ril_template(const guint rreq, struct ofono_voicecall *vc,
 	req->data = data;
 	req->affected_types = affected_types;
 
-	if (g_ril_send(vd->ril, rreq, pdata, psize, func, req, g_free) > 0)
-		return;
-
+	ret = g_ril_send(vd->ril, rreq, pdata, psize, func, req, g_free);
+	if (ret > 0)
+		return ret;
 error:
 	g_free(req);
 
 	if (cb)
 		CALLBACK_WITH_FAILURE(cb, data);
+
+	return 0;
 }
 
 static void rild_cb(struct ril_msg *message, gpointer user_data)
@@ -304,6 +324,10 @@ static void rild_cb(struct ril_msg *message, gpointer user_data)
 		decode_ril_error(&error, "FAIL");
 		goto out;
 	}
+
+#ifdef RIL_DEBUG_TRACE
+	ril_print_response_no_args(message);
+#endif
 
 	/* On a success, make sure to put all active calls on hold */
 	for (l = vd->calls; l; l = l->next) {
@@ -335,6 +359,7 @@ static void ril_dial(struct ofono_voicecall *vc,
 	struct voicecall_data *vd = ofono_voicecall_get_data(vc);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
+	int request = RIL_REQUEST_DIAL;
 	int ret;
 
 	cbd->user = vc;
@@ -351,8 +376,17 @@ static void ril_dial(struct ofono_voicecall *vc,
 	parcel_w_int32(&rilp, 0);
 
 	/* Send request to RIL */
-	ret = g_ril_send(vd->ril, RIL_REQUEST_DIAL, rilp.data,
+	ret = g_ril_send(vd->ril, request, rilp.data,
 				rilp.size, rild_cb, cbd, g_free);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%s,%d,0,0)",
+				phone_number_to_string(ph),
+				clir);
+
+	ril_print_request(ret, request);
+#endif
+
 	parcel_free(&rilp);
 
 	/* In case of error free cbd and return the cb with failure */
@@ -370,19 +404,26 @@ static void ril_hangup_all(struct ofono_voicecall *vc,
 	struct ofono_error error;
 	struct ofono_call *call;
 	GSList *l;
+	int request = RIL_REQUEST_HANGUP;
+	int ret;
 
 	for (l = vd->calls; l; l = l->next) {
 		call = l->data;
 		/* TODO: Hangup just the active ones once we have call
 		 * state tracking (otherwise it can't handle ringing) */
-		DBG("Hanging up call with id %d", call->id);
 		parcel_init(&rilp);
 		parcel_w_int32(&rilp, 1); /* Always 1 - AT+CHLD=1x */
 		parcel_w_int32(&rilp, call->id);
 
 		/* Send request to RIL */
-		ril_template(RIL_REQUEST_HANGUP, vc, generic_cb, 0x3f,
-				rilp.data, rilp.size, NULL, NULL);
+		ret = ril_template(request, vc, generic_cb, 0x3f,
+					rilp.data, rilp.size, NULL, NULL);
+
+#ifdef RIL_DEBUG_TRACE
+		ril_append_print_buf("(%d)", call->id);
+		ril_print_request(ret, request);
+#endif
+
 		parcel_free(&rilp);
 	}
 
@@ -410,11 +451,18 @@ error:
 static void ril_answer(struct ofono_voicecall *vc,
 			ofono_voicecall_cb_t cb, void *data)
 {
+	int request = RIL_REQUEST_ANSWER;
+	int ret;
+
 	DBG("Answering current call");
 
 	/* Send request to RIL */
-	ril_template(RIL_REQUEST_ANSWER, vc, generic_cb, 0,
+	ret = ril_template(request, vc, generic_cb, 0,
 				NULL, 0, cb, data);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_print_request_no_args(ret, request);
+#endif
 
 	audioflinger_set_call_mode();
 }
@@ -427,7 +475,8 @@ static void ril_send_dtmf(struct ofono_voicecall *vc, const char *dtmf,
 	struct parcel rilp;
 	struct ofono_error error;
 	char *ril_dtmf = g_try_malloc(sizeof(char) * 2);
-	int i;
+	int request = RIL_REQUEST_DTMF;
+	int i, ret;
 
 	DBG("");
 
@@ -438,10 +487,19 @@ static void ril_send_dtmf(struct ofono_voicecall *vc, const char *dtmf,
 		parcel_init(&rilp);
 		ril_dtmf[0] = dtmf[i];
 		parcel_w_string(&rilp, ril_dtmf);
-		DBG("DTMF: Sending %s", ril_dtmf);
-		g_ril_send(vd->ril, RIL_REQUEST_DTMF, rilp.data,
+
+		ret = g_ril_send(vd->ril, request, rilp.data,
 				rilp.size, NULL, NULL, NULL);
+
+#ifdef RIL_DEBUG_TRACE
+		ril_append_print_buf("(%s)", ril_dtmf);
+		ril_print_request(ret, request);
+#endif
 		parcel_free(&rilp);
+
+		/* TODO: should we break out of look on failure? */
+		if (ret <= 0)
+			ofono_error("send REQUEST_DTMF failed");
 	}
 
 	free(ril_dtmf);

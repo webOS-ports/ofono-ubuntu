@@ -47,6 +47,10 @@ struct sms_data {
 	unsigned int vendor;
 };
 
+#ifdef RIL_DEBUG_TRACE
+static char print_buf[PRINT_BUF_SIZE];
+#endif
+
 static void sms_debug(const gchar *str, gpointer user_data)
 {
 	const char *prefix = user_data;
@@ -140,6 +144,7 @@ static void ril_cmgs(struct ofono_sms *sms, const unsigned char *pdu,
 	struct cb_data *cbd = cb_data_new(cb, user_data);
 	struct parcel rilp;
 	char *tpdu;
+	int request = RIL_REQUEST_SEND_SMS;
 	int ret, smsc_len;
 
         DBG("pdu_len: %d, tpdu_len: %d mms: %d", pdu_len, tpdu_len, mms);
@@ -180,10 +185,15 @@ static void ril_cmgs(struct ofono_sms *sms, const unsigned char *pdu,
 	g_ril_util_debug_hexdump(FALSE, (guchar *) rilp.data, rilp.size,
 					sms_debug, "sms-encoded-buf: ");
 	ret = g_ril_send(data->ril,
-			RIL_REQUEST_SEND_SMS,
-			rilp.data,
-			rilp.size,
-			submit_sms_cb, cbd, g_free);
+				request,
+				rilp.data,
+				rilp.size,
+				submit_sms_cb, cbd, g_free);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%s)", tpdu);
+	ril_print_request(ret, request);
+#endif
 
 	parcel_free(&rilp);
 
@@ -221,17 +231,16 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 	unsigned int smsc_len;
 	long ril_buf_len;
 	guchar *ril_data;
+	int request = RIL_REQUEST_SMS_ACKNOWLEDGE;
+	int ret;
 
 	DBG("req: %d; data_len: %d", message->req, message->buf_len);
 
 	if (message->req != RIL_UNSOL_RESPONSE_NEW_SMS)
 		goto error;
 
-	/* Set up Parcel struct for proper parsing */
-	rilp.data = message->buf;
-	rilp.size = message->buf_len;
-	rilp.capacity = message->buf_len;
-	rilp.offset = 0;
+
+	ril_util_init_parcel(message, &rilp);
 
 	g_ril_util_debug_hexdump(FALSE, (guchar *) message->buf,
 		message->buf_len, sms_debug, "sms-notify: ");
@@ -252,17 +261,22 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 					sms_debug,
 					"sms-notify-decoded: ");
 
-    /* The first octect in the pdu contains the SMSC address length
-     * which is the X following octects it reads. We add 1 octet to
-     * the read length to take into account this read octet in order
-     * to calculate the proper tpdu length.
-     */
+	/* The first octect in the pdu contains the SMSC address length
+	 * which is the X following octects it reads. We add 1 octet to
+	 * the read length to take into account this read octet in order
+	 * to calculate the proper tpdu length.
+	 */
 	smsc_len = ril_data[0] + 1;
 	DBG("smsc_len is %d", smsc_len);
 
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(%s)", ril_pdu);
+	ril_print_unsol(message);
+#endif
+
 	/* Last parameter is 'tpdu_len' ( substract SMSC length ) */
-	ofono_sms_deliver_notify(sms, ril_data, 
-			ril_buf_len, 
+	ofono_sms_deliver_notify(sms, ril_data,
+			ril_buf_len,
 			ril_buf_len - smsc_len);
 
 	/* Re-use rilp, so initilize */
@@ -274,10 +288,15 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 	/* TODO: should ACK be sent for either of the error cases? */
 
 	/* ACK the incoming NEW_SMS; ignore response so no cb needed */
-	g_ril_send(data->ril, RIL_REQUEST_SMS_ACKNOWLEDGE,
+	ret = g_ril_send(data->ril, request,
 			rilp.data,
 			rilp.size,
 			NULL, NULL, NULL);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(1,0)");
+	ril_print_request(ret, request);
+#endif
 
 	parcel_free(&rilp);
 	return;
@@ -297,8 +316,6 @@ static gboolean ril_delayed_register(gpointer user_data)
 	/* register to receive INCOMING_SMS */
 	g_ril_register(data->ril, RIL_UNSOL_RESPONSE_NEW_SMS,
 			ril_sms_notify,	sms);
-
-	DBG("registered NEW_SMS callback");
 
         /* This makes the timeout a single-shot */
         return FALSE;

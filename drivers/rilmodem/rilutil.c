@@ -230,6 +230,9 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 
 	ril_util_init_parcel(message, &rilp);
 
+#ifdef RIL_DEBUG_TRACE
+	ril_start_response;
+#endif
 	/* Number of RIL_Call structs */
 	num = parcel_r_int32(&rilp);
 	for (i = 0; i < num; i++) {
@@ -267,12 +270,22 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 		else
 			call->clip_validity = 2;
 
-		DBG("Adding call - id: %d, status: %d, type: %d, number: %s, name: %s",
+#ifdef RIL_DEBUG_TRACE
+		/* TODO: figure out how to line-wrap properly
+		 * without introducing spaces in string.
+		 */
+		ril_append_print_buf("%s [id=%d,status=%d,type=%d,number=%s,name=%s]",
 				call->id, call->status, call->type,
 				call->phone_number.number, call->name);
+#endif
 
 		l = g_slist_insert_sorted(l, call, ril_util_call_compare);
 	}
+
+#ifdef RIL_DEBUG_TRACE
+	ril_close_response;
+	ril_print_response(message);
+#endif
 
 	return l;
 }
@@ -371,7 +384,6 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 	}
 
 	ril_util_init_parcel(message, &rilp);
-
 	*sw1 = parcel_r_int32(&rilp);
 	*sw2 = parcel_r_int32(&rilp);
 
@@ -658,8 +670,12 @@ gint ril_util_parse_sms_response(struct ril_msg *message)
 	ack_pdu = parcel_r_int32(&rilp);
 	error = parcel_r_int32(&rilp);
 
-	DBG("SMS_Response mr: %d, ackPDU: %d, error: %d",
-		mr, ack_pdu, error);
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("{%d,%d,%d}",
+				mr, ack_pdu, error);
+	ril_print_response(message);
+#endif
 
 	return mr;
 }
