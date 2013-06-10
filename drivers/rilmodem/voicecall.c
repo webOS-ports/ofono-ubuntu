@@ -224,6 +224,7 @@ static gboolean poll_clcc(gpointer user_data)
 	struct ofono_voicecall *vc = user_data;
 	struct voicecall_data *vd = ofono_voicecall_get_data(vc);
 	int request = RIL_REQUEST_GET_CURRENT_CALLS;
+	int ret;
 
 	ret = g_ril_send(vd->ril, request, NULL,
 			0, clcc_poll_cb, vc, NULL);
