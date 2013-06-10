@@ -67,8 +67,9 @@ struct gprs_data {
 	int status;
 };
 
-/* TODO: make conditional */
+#ifdef RIL_DEBUG_TRACE
 static char print_buf[PRINT_BUF_SIZE];
+#endif
 
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 						ofono_gprs_status_cb_t cb,
@@ -83,6 +84,8 @@ static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 				message->req);
 		return;
 	}
+
+	/* receipt of tihs event is already logged in network-registration */
 
 	ril_gprs_registration_status(gprs, NULL, NULL);
 }
@@ -173,7 +176,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if (gd->status == -1) {
-		DBG("calling ofono_gprs_register...");
 		ofono_gprs_register(gprs);
 
 		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
@@ -187,7 +189,6 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if (gd->status != status) {
-		DBG("gd->status: %d status: %d", gd->status, status);
 		ofono_gprs_status_notify(gprs, status);
 	}
 
@@ -229,8 +230,6 @@ static int ril_gprs_probe(struct ofono_gprs *gprs,
 {
 	GRil *ril = data;
 	struct gprs_data *gd;
-
-        DBG("");
 
 	gd = g_try_new0(struct gprs_data, 1);
 	if (gd == NULL)

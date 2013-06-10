@@ -58,8 +58,6 @@ static void volume_mute_cb(struct ril_msg *message, gpointer user_data)
 	ofono_call_volume_cb_t cb = cbd->cb;
 	struct ofono_error error;
 
-	DBG("");
-
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 
@@ -89,6 +87,7 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);
 	parcel_w_int32(&rilp, muted);
+	DBG("Initial ril muted state: %d", muted);
 	ret = g_ril_send(cvd->ril, request, rilp.data,
 			rilp.size, volume_mute_cb, cbd, g_free);
 	parcel_free(&rilp);
@@ -111,8 +110,6 @@ static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 	struct parcel rilp;
 	int muted;
 
-	DBG("");
-
 	if (message->error != RIL_E_SUCCESS) {
 		ofono_error("Could not retrive the ril mute state");
 		return;
@@ -120,7 +117,6 @@ static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 	muted = parcel_r_int32(&rilp);
-	DBG("Initial ril muted state: %d", muted);
 
 #ifdef RIL_DEBUG_TRACE
 	ril_append_print_buf("{%d}", muted);
@@ -163,8 +159,6 @@ static int ril_call_volume_probe(struct ofono_call_volume *cv,
 {
 	GRil *ril = data;
 	struct cv_data *cvd;
-
-	DBG("");
 
 	cvd = g_new0(struct cv_data, 1);
 	if (cvd == NULL)

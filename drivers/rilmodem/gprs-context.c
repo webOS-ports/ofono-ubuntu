@@ -477,8 +477,6 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 	GRil *ril = data;
 	struct gprs_context_data *gcd;
 
-	DBG("");
-
 	gcd = g_try_new0(struct gprs_context_data, 1);
 	if (gcd == NULL)
 		return -ENOMEM;

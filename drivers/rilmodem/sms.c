@@ -310,8 +310,6 @@ static int ril_sms_probe(struct ofono_sms *sms, unsigned int vendor,
 	GRil *ril = user;
 	struct sms_data *data;
 
-        DBG("");
-
 	data = g_new0(struct sms_data, 1);
 	data->ril = g_ril_clone(ril);
 	data->vendor = vendor;

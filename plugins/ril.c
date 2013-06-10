@@ -60,7 +60,6 @@
 #define MAX_POWER_ON_RETRIES 5
 
 struct ril_data {
-	const char *ifname;
 	GRil *modem;
 	int power_on_retries;
 
@@ -97,6 +96,10 @@ static void power_cb(struct ril_msg *message, gpointer user_data)
 		else
 			ofono_error("Max retries for radio power on exceeded!");
 	} else {
+
+#ifdef RIL_DEBUG_TRACE
+		ril_print_response_no_args(message);
+#endif
 		DBG("Radio POWER-ON OK, calling set_powered(TRUE).");
 		ofono_modem_set_powered(modem, TRUE);
 	}
@@ -109,8 +112,6 @@ static gboolean power_on(gpointer user_data)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 	int request = RIL_REQUEST_RADIO_POWER;
 	guint ret;
-
-	DBG("");
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1); /* size of array */
@@ -134,8 +135,6 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_modem *modem = user_data;
 	struct ril_data *ril = ofono_modem_get_data(modem);
-
-	DBG("");
 
 	/* Returns TRUE if cardstate == PRESENT */
 	if (ril_util_parse_sim_status(message, NULL)) {
@@ -168,16 +167,7 @@ static int send_get_sim_status(struct ofono_modem *modem)
 
 static int ril_probe(struct ofono_modem *modem)
 {
-	char const *ifname = ofono_modem_get_string(modem, "Interface");
-	unsigned address = ofono_modem_get_integer(modem, "Address");
 	struct ril_data *ril = NULL;
-
-	if (!ifname) {
-		DBG("(%p) no ifname", modem);
-		return -EINVAL;
-	}
-
-	DBG("(%p) with %s / %d", modem, ifname, address);
 
 	ril = g_try_new0(struct ril_data, 1);
 	if (ril == NULL) {
@@ -186,7 +176,6 @@ static int ril_probe(struct ofono_modem *modem)
 	}
 
         ril->modem = NULL;
-	ril->ifname = ifname;
 
 	ofono_modem_set_data(modem, ril);
 
@@ -202,7 +191,6 @@ static void ril_remove(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
-	DBG("(%p) with %s", modem, ril->ifname);
 
 	ofono_modem_set_data(modem, NULL);
 
@@ -219,8 +207,6 @@ static void ril_pre_sim(struct ofono_modem *modem)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 	struct ofono_sim *sim;
 
-	DBG("(%p) with %s", modem, ril->ifname);
-
 	sim = ofono_sim_create(modem, 0, "rilmodem", ril->modem);
 	ofono_devinfo_create(modem, 0, "rilmodem", ril->modem);
 	ofono_voicecall_create(modem, 0, "rilmodem", ril->modem);
@@ -234,10 +220,6 @@ static void ril_post_sim(struct ofono_modem *modem)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 	struct ofono_gprs *gprs;
 	struct ofono_gprs_context *gc;
-
-
-
-	DBG("(%p) with %s", modem, ril->ifname);
 
 	/* TODO: this function should setup:
 	 *  - phonebook
@@ -259,8 +241,6 @@ static void ril_post_online(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
-	DBG("(%p) with %s", modem, ril->ifname);
-
 	ofono_call_volume_create(modem, 0, "rilmodem", ril->modem);
 	ofono_netreg_create(modem, 0, "rilmodem", ril->modem);
 }
@@ -268,8 +248,6 @@ static void ril_post_online(struct ofono_modem *modem)
 static int ril_enable(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
-
-	DBG("modem=%p with %s", modem, ril ? ril->ifname : NULL);
 
 	ril->have_sim = FALSE;
 
@@ -301,8 +279,6 @@ static int ril_enable(struct ofono_modem *modem)
 static int ril_disable(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
-
-	DBG("modem=%p with %p", modem, ril ? ril->ifname : NULL);
 
         return 0;
 }
@@ -340,8 +316,6 @@ static int ril_init(void)
 	int retval = 0;
 	struct ofono_modem *modem;
 
-	DBG("ofono_modem_register returned: %d", retval);
-
 	if ((retval = ofono_modem_driver_register(&ril_driver))) {
 		DBG("ofono_modem_driver_register returned: %d", retval);
                 return retval;
@@ -358,12 +332,6 @@ static int ril_init(void)
 		DBG("ofono_modem_create failed for ril");
 		return -ENODEV;
 	}
-
-	/* TODO: these are both placeholders; we should
-	 * determine if they can be removed.
-	 */
-	ofono_modem_set_string(modem, "Interface", "ttys");
-	ofono_modem_set_integer(modem, "Address", 0);
 
 	/* This causes driver->probe() to be called... */
 	retval = ofono_modem_register(modem);

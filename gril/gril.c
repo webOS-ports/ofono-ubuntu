@@ -229,8 +229,10 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 	if (r == NULL)
 		return 0;
 
+#ifdef GRIL_DEBUG
         DBG("req: %s, id: %d, data_len: %d",
 		ril_request_id_to_string(req), id, data_len);
+#endif
 
         /* RIL request: 8 byte header + data */
         len = 8 + data_len;
@@ -344,7 +346,7 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 
 #ifdef RIL_DEBUG_TRACE
 			if (message->error != RIL_E_SUCCESS)
-				DBG("[%04d]< %s failed %s",
+				TRACE("[%04d]< %s failed %s",
 					message->serial_no,
 					ril_request_id_to_string(message->req),
 					ril_error_to_string(message->error));
@@ -391,6 +393,7 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 	gpointer key, value;
 	GList *list_item;
 	struct ril_notify_node *node;
+	gboolean found = FALSE;
 
 	if (p->notify_list == NULL)
 		return;
@@ -423,10 +426,15 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 			 */
 
 			node->callback(message, node->user_data);
-
+			found = TRUE;
 			list_item = g_slist_next(list_item);
 		}
 	}
+
+	/* Only log events not being listended for... */
+	if (!found)
+		DBG("RIL Event: %s\n",
+			ril_unsol_request_to_string(message->req));
 
 	p->in_notify = FALSE;
 }
@@ -494,9 +502,6 @@ static void dispatch(struct ril_s *p, struct ril_msg *message)
 	}
 
 	if (message->unsolicited == TRUE) {
-		DBG("RIL Event: %s\n",
-			ril_unsol_request_to_string(message->req));
-
 		handle_unsol_req(p, message);
 	} else {
 		handle_response(p, message);
@@ -910,8 +915,12 @@ static guint ril_register(struct ril_s *ril, guint group,
 	node->user_data = user_data;
 
 	notify->nodes = g_slist_prepend(notify->nodes, node);
+
+#ifdef GRIL_DEBUG
 	DBG("after pre-pend; notify: %x, node %x, notify->nodes: %x, callback: %x",
-		notify, node, notify->nodes, node->callback);
+		(guint) notify, (guint) node,
+		(guint) notify->nodes, (guint) node->callback);
+#endif
 
 	return node->id;
 }

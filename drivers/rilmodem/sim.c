@@ -157,12 +157,9 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	guchar access[3] = { 0x00, 0x00, 0x00 };
 	guchar file_status = EF_STATUS_VALID;
 
-	DBG("");
-
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
@@ -293,12 +290,9 @@ static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 	int sw1 = 0, sw2 = 0, response_len = 0;
 	guchar *response = NULL;
 
-	DBG("");
-
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("RILD reply failure: %s", ril_error_to_string(message->error));
 		goto error;
 	}
 
@@ -330,9 +324,6 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int request = RIL_REQUEST_SIM_IO;
 	guint ret;
-
-	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
-		fileid, path);
 
 #ifdef RIL_DEBUG_TRACE
 	ril_start_request;
@@ -454,7 +445,6 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 		DBG("GET IMSI reply - OK");
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
 		cb(&error, NULL, cbd->data);
 		return;
@@ -485,8 +475,6 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	int request = RIL_REQUEST_GET_IMSI;
 	guint ret;
 
-	DBG("");
-
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);            /* Number of params */
 	parcel_w_string(&rilp, sd->app_id);  /* AID (Application ID) */
@@ -512,8 +500,6 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_sim *sim = user_data;
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct sim_app app;
-
-	DBG("");
 
 	if (ril_util_parse_sim_status(message, &app)) {
 		if (app.app_id)
@@ -559,8 +545,6 @@ static int ril_sim_probe(struct ofono_sim *sim, unsigned int vendor,
 {
 	GRil *ril = data;
 	struct sim_data *sd;
-
-	DBG("");
 
 	sd = g_new0(struct sim_data, 1);
 	sd->ril = g_ril_clone(ril);

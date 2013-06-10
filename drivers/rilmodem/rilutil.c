@@ -562,17 +562,6 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 		}
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
-			sstatus,
-			slac,
-			sci,
-			stech,
-			sreason,
-			smax);
-	ril_print_response(message);
-#endif
-
 	if (status) {
 		if (!sstatus) {
 			DBG("No sstatus value returned!");
@@ -627,6 +616,17 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 		} else
 			*tech = -1;
 	}
+
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
+				registration_status_to_string(*status),
+				slac,
+				sci,
+				registration_tech_to_string(*tech),
+				sreason,
+				smax);
+	ril_print_response(message);
+#endif
 
 	/* Free our parcel handlers */
 	g_free(sstatus);
@@ -693,8 +693,15 @@ gint ril_util_get_signal(struct ril_msg *message)
 	parcel_r_int32(&rilp); /* rssnr */
 	parcel_r_int32(&rilp); /* cqi */
 
-	DBG("RIL SignalStrength - gw: %d, cdma: %d, evdo: %d, lte: %d",
+#ifdef RIL_DEBUG_TRACE
+	ril_append_print_buf("(gw: %d, cdma: %d, evdo: %d, lte: %d)",
 			gw_signal, cdma_dbm, evdo_dbm, lte_signal);
+
+	if (message->unsolicited)
+		ril_print_unsol(message);
+	else
+		ril_print_response(message);
+#endif
 
 	/* Return the first valid one */
 	if ((gw_signal != 99) && (gw_signal != -1))

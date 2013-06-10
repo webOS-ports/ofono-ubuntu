@@ -67,6 +67,23 @@ struct ofono_debug_desc {
 					__FILE__, __FUNCTION__ , ## arg); \
 } while (0)
 
+/**
+ * TRACE:
+ * @fmt: format string
+ * @arg...: list of arguments
+ *
+ * Simple macro around ofono_debug() used for tracing RIL messages
+ * name it is called in.
+ */
+#define TRACE(fmt, arg...) do { \
+	static struct ofono_debug_desc __ofono_debug_desc \
+	__attribute__((used, section("__debug"), aligned(8))) = { \
+		.file = __FILE__, .flags = OFONO_DEBUG_FLAG_DEFAULT, \
+	}; \
+	if (__ofono_debug_desc.flags & OFONO_DEBUG_FLAG_PRINT) \
+		ofono_debug(fmt, ## arg); \
+} while (0)
+
 #ifdef __cplusplus
 }
 #endif
