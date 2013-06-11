@@ -58,11 +58,13 @@
 #include "drivers/rilmodem/rilmodem.h"
 
 #define MAX_POWER_ON_RETRIES 5
+#define MAX_SIM_STATUS_RETRIES 15
 
 struct ril_data {
 	const char *ifname;
 	GRil *modem;
 	int power_on_retries;
+	int sim_status_retries;
 	ofono_bool_t connected;
 	ofono_bool_t have_sim;
 	ofono_bool_t online;
@@ -87,8 +89,9 @@ static void power_cb(struct ril_msg *message, gpointer user_data)
 
 	if (message->error != RIL_E_SUCCESS) {
 		ril->power_on_retries++;
-		ofono_warn("Radio Power On request failed: %d; retries: %d",
-				message->error, ril->power_on_retries);
+		ofono_warn("Radio Power On request failed: %s; retries: %d",
+				ril_error_to_string(message->error),
+				ril->power_on_retries);
 
 		if (ril->power_on_retries < MAX_POWER_ON_RETRIES)
 			g_timeout_add_seconds(1, power_on, modem);
@@ -128,16 +131,52 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 
 	DBG("");
 
-	/* Returns TRUE if cardstate == PRESENT */
-	if (ril_util_parse_sim_status(message, NULL)) {
-		DBG("have_sim = TRUE; powering on modem.");
+	/*
+	 * ril.h claims this should NEVER fail!
+	 * However this isn't quite true.  So,
+	 * on anything other than SUCCESS, we
+	 * log an error, and schedule another
+	 * GET_SIM_STATUS request.
+	 */
 
-		/* TODO: check PinState=DISABLED, for now just
-		 * set state to valid... */
-		ril->have_sim = TRUE;
-		power_on(modem);
+	if (message->error != RIL_E_SUCCESS) {
+		ril->sim_status_retries++;
+
+		ofono_error("GET_SIM_STATUS reques failed: %d; retries: %d",
+				message->error, ril->sim_status_retries);
+
+
+		/* PLEASE REVIEW: perhaps we should consider making this
+		 * never fail due to max retries, but instead retard the
+		 * the timeout after a certain number of attempts.  So
+		 * we'd start with a 2s timeout, and after a limit is
+		 * hit, increase the timeout to 1m? */
+
+		if (ril->sim_status_retries < MAX_SIM_STATUS_RETRIES)
+			g_timeout_add_seconds(2, send_get_sim_status, modem);
+		else
+			ofono_error("Max retries for GET_SIM_STATUS exceeded!");
+	} else {
+		/* Returns TRUE if cardstate == PRESENT */
+		if (ril_util_parse_sim_status(message, NULL)) {
+			DBG("have_sim = TRUE; powering on modem.");
+
+			/* TODO: check PinState=DISABLED, for now just
+			 * set state to valid... */
+			ril->have_sim = TRUE;
+			power_on(modem);
+		} else
+			ofono_warn("No SIM card present.");
+
+		/* PLEASE REVIEW: Same question about no SIM card
+		 * present, should we poll once a minute to detect someone
+		 * adding a SIM card to a running phone, or force them
+		 * to restart?
+		 *
+		 * Also, what UI component should be responsible for notifying
+		 * the user that the SIM is missing?
+		 */
 	}
-
 	/* TODO: handle emergency calls if SIM !present or locked */
 }
 
