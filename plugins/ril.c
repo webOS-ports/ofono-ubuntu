@@ -73,6 +73,7 @@ struct ril_data {
 
 static char print_buf[PRINT_BUF_SIZE];
 
+static int send_get_sim_status(struct ofono_modem *modem);
 static gboolean power_on(gpointer user_data);
 
 static void ril_debug(const char *str, void *user_data)
