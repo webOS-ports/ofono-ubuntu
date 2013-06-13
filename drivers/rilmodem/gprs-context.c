@@ -180,21 +180,19 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	dnses = parcel_r_string(&rilp);
 	raw_gws = parcel_r_string(&rilp);
 
-	g_ril_append_print_buf("{version=%d,num=%d",
-			version,
-			num);
-
-	g_ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]}",
-			print_buf,
-			status,
-			retry_time,
-			cid,
-			active,
-			type,
-			ifname,
-			raw_ip_addrs,
-			dnses,
-			raw_gws);
+	g_ril_append_print_buf(gcd->ril,
+				"{version=%d,num=%d [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]}",
+				version,
+				num,
+				status,
+				retry_time,
+				cid,
+				active,
+				type,
+				ifname,
+				raw_ip_addrs,
+				dnses,
+				raw_gws);
 	g_ril_print_response(gcd->ril, message);
 
 	if (status != 0) {
@@ -359,7 +357,8 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_setup_data_call_cb, cbd, g_free);
 
-	g_ril_append_print_buf("(%s,%s,%s,%s,%s,%s,%s)",
+	g_ril_append_print_buf(gcd->ril,
+				"(%s,%s,%s,%s,%s,%s,%s)",
 				tech,
 				DATA_PROFILE_DEFAULT,
 				ctx->apn,
@@ -439,7 +438,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_deactivate_data_call_cb, cbd, g_free);
 
-	g_ril_append_print_buf("(%s,0)", cid);
+	g_ril_append_print_buf(gcd->ril, "(%s,0)", cid);
 	g_ril_print_request(gcd->ril, ret, request);
 
 	parcel_free(&rilp);

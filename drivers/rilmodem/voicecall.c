@@ -370,7 +370,7 @@ static void ril_dial(struct ofono_voicecall *vc,
 	ret = g_ril_send(vd->ril, request, rilp.data,
 				rilp.size, rild_cb, cbd, g_free);
 
-	g_ril_append_print_buf("(%s,%d,0,0)",
+	g_ril_append_print_buf(vd->ril, "(%s,%d,0,0)",
 				phone_number_to_string(ph),
 				clir);
 
@@ -408,7 +408,7 @@ static void ril_hangup_all(struct ofono_voicecall *vc,
 		ret = ril_template(request, vc, generic_cb, 0x3f,
 					rilp.data, rilp.size, NULL, NULL);
 
-		g_ril_append_print_buf("(%d)", call->id);
+		g_ril_append_print_buf(vd->ril, "(%d)", call->id);
 		g_ril_print_request(vd->ril, ret, request);
 
 		parcel_free(&rilp);
@@ -477,7 +477,7 @@ static void ril_send_dtmf(struct ofono_voicecall *vc, const char *dtmf,
 		ret = g_ril_send(vd->ril, request, rilp.data,
 				rilp.size, NULL, NULL, NULL);
 
-		g_ril_append_print_buf("(%s)", ril_dtmf);
+		g_ril_append_print_buf(vd->ril, "(%s)", ril_dtmf);
 		g_ril_print_request(vd->ril, ret, request);
 		parcel_free(&rilp);
 

@@ -268,7 +268,8 @@ GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message)
 		/* TODO: figure out how to line-wrap properly
 		 * without introducing spaces in string.
 		 */
-		g_ril_append_print_buf("%s [id=%d,status=%d,type=%d,number=%s,name=%s]",
+		g_ril_append_print_buf(gril,
+					"%s [id=%d,status=%d,type=%d,number=%s,name=%s]",
 					print_buf,
 					call->id, call->status, call->type,
 					call->phone_number.number, call->name);
@@ -303,9 +304,10 @@ GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message)
 	/* Number of calls */
 	num = parcel_r_int32(&rilp);
 
-	g_ril_append_print_buf("(version=%d,num=%d",
-			version,
-			num);
+	g_ril_append_print_buf(gril,
+				"(version=%d,num=%d",
+				version,
+				num);
 
 	for (i = 0; i < num; i++) {
 		call = g_try_new(struct data_call, 1);
@@ -326,17 +328,18 @@ GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message)
 		/* TODO: figure out how to line-wrap properly
 		 * without introducing spaces in string.
 		 */
-		g_ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
-				print_buf,
-				call->status,
-				call->retry,
-				call->cid,
-				call->active,
-				call->type,
-				call->ifname,
-				call->addresses,
-				call->dnses,
-				call->gateways);
+		g_ril_append_print_buf(gril,
+					"%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+					print_buf,
+					call->status,
+					call->retry,
+					call->cid,
+					call->active,
+					call->type,
+					call->ifname,
+					call->addresses,
+					call->dnses,
+					call->gateways);
 
 		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
 	}
@@ -378,10 +381,11 @@ char *ril_util_parse_sim_io_rsp(GRil *gril,
 							(long *) hex_len, -1);
 	}
 
-	g_ril_append_print_buf("(sw1=0x%.2X,sw2=0x%.2X,%s)",
-			*sw1,
-			*sw2,
-			response);
+	g_ril_append_print_buf(gril,
+				"(sw1=0x%.2X,sw2=0x%.2X,%s)",
+				*sw1,
+				*sw2,
+				response);
 	g_ril_print_response(gril, message);
 
 	g_free(response);
@@ -399,7 +403,7 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
 	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
 
-	g_ril_append_print_buf("[%04d]< %s",
+	g_ril_append_print_buf(gril, "[%04d]< %s",
 			message->serial_no,
 			ril_request_id_to_string(message->req));
 
@@ -440,12 +444,13 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 	 * Using line wrapping ( via '\' ) introduces spaces in the output.
 	 * Do we just make a style-guide exception for PrintBuf operations?
 	 */
-	g_ril_append_print_buf("(card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
-		       card_state,
-		       pin_state,
-		       gsm_umts_index,
-		       -1,
-		       ims_index);
+	g_ril_append_print_buf(gril,
+				"(card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
+				card_state,
+				pin_state,
+				gsm_umts_index,
+				-1,
+				ims_index);
 
 	for (i = 0; i < num_apps; i++) {
 		app_type = parcel_r_int32(&rilp);
@@ -462,16 +467,17 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-		g_ril_append_print_buf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
-				print_buf,
-				app_type,
-				app_state,
-				perso_substate,
-				aid_str,
-				app_str,
-				pin_replaced,
-				pin1_state,
-				pin2_state);
+		g_ril_append_print_buf(gril,
+					"%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+					print_buf,
+					app_type,
+					app_state,
+					perso_substate,
+					aid_str,
+					app_str,
+					pin_replaced,
+					pin1_state,
+					pin2_state);
 
 		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
 		if (i == gsm_umts_index && app) {
@@ -603,7 +609,8 @@ gboolean ril_util_parse_reg(GRil *gril,
 			*tech = -1;
 	}
 
-	g_ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
+	g_ril_append_print_buf(gril,
+				"{%s,%s,%s,%s,%s,%s}",
 				registration_status_to_string(*status),
 				slac,
 				sci,
@@ -643,7 +650,7 @@ gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message)
 	error = parcel_r_int32(&rilp);
 
 
-	g_ril_append_print_buf("{%d,%d,%d}",
+	g_ril_append_print_buf(gril, "{%d,%d,%d}",
 				mr, ack_pdu, error);
 	g_ril_print_response(gril, message);
 
@@ -679,7 +686,7 @@ gint ril_util_get_signal(GRil *gril, struct ril_msg *message)
 	parcel_r_int32(&rilp); /* rssnr */
 	parcel_r_int32(&rilp); /* cqi */
 
-	g_ril_append_print_buf("(gw: %d, cdma: %d, evdo: %d, lte: %d)",
+	g_ril_append_print_buf(gril, "(gw: %d, cdma: %d, evdo: %d, lte: %d)",
 				gw_signal, cdma_dbm, evdo_dbm, lte_signal);
 
 	if (message->unsolicited)

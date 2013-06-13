@@ -216,7 +216,8 @@ static void ril_cops_cb(struct ril_msg *message, gpointer user_data)
 	op.status = OPERATOR_STATUS_CURRENT;
 	op.tech = nd->tech;
 
-	g_ril_append_print_buf("(lalpha=%s, salpha=%s, numeric=%s, %s, mcc=%s, mnc=%s, %s)",
+	g_ril_append_print_buf(nd->ril,
+				"(lalpha=%s, salpha=%s, numeric=%s, %s, mcc=%s, mnc=%s, %s)",
 				lalpha, salpha, numeric,
 				op.name, op.mcc, op.mnc,
 				registration_tech_to_string(op.tech));
@@ -316,7 +317,8 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 		else if (!strcmp(status, "forbidden"))
 			list[i].status = OPERATOR_STATUS_FORBIDDEN;
 
-		g_ril_append_print_buf("%s [operator=%s, %s, %s, status: %s]",
+		g_ril_append_print_buf(nd->ril,
+					"%s [operator=%s, %s, %s, status: %s]",
 					print_buf,
 					list[i].name, list[i].mcc,
 					list[i].mnc, status);
@@ -420,7 +422,7 @@ static void ril_register_manual(struct ofono_netreg *netreg,
 				cbd, g_free);
 	parcel_free(&rilp);
 
-	g_ril_append_print_buf("(%s)", buf);
+	g_ril_append_print_buf(nd->ril,	"(%s)", buf);
 	g_ril_print_request(nd->ril, ret, request);
 
 	/* In case of error free cbd and return the cb with failure */
@@ -508,7 +510,7 @@ static void ril_nitz_notify(struct ril_msg *message, gpointer user_data)
 
 	nitz = parcel_r_string(&rilp);
 
-	g_ril_append_print_buf("(%s)", nitz);
+	g_ril_append_print_buf(nd->ril, "(%s)", nitz);
 	g_ril_print_unsol(nd->ril, message);
 
 	sscanf(nitz, "%u/%u/%u,%u:%u:%u%c%u,%u", &year, &mon, &mday,

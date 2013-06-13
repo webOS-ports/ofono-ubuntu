@@ -182,7 +182,7 @@ static void ril_cmgs(struct ofono_sms *sms, const unsigned char *pdu,
 				rilp.size,
 				submit_sms_cb, cbd, g_free);
 
-	g_ril_append_print_buf("(%s)", tpdu);
+	g_ril_append_print_buf(sd->ril, "(%s)", tpdu);
 	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
@@ -214,7 +214,7 @@ static void ril_cgsms_query(struct ofono_sms *sms,
 static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_sms *sms = user_data;
-	struct sms_data *data = ofono_sms_get_data(sms);
+	struct sms_data *sd = ofono_sms_get_data(sms);
 	struct parcel rilp;
 	char *ril_pdu;
 	int ril_pdu_len;
@@ -232,9 +232,6 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-	g_ril_util_debug_hexdump(FALSE, (guchar *) message->buf,
-		message->buf_len, sms_debug, "sms-notify: ");
-
 	ril_pdu = parcel_r_string(&rilp);
 	if (ril_pdu == NULL)
 		goto error;
@@ -246,11 +243,6 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 	if (ril_data == NULL)
 		goto error;
 
-	g_ril_util_debug_hexdump(FALSE,	ril_data,
-					ril_buf_len,
-					sms_debug,
-					"sms-notify-decoded: ");
-
 	/* The first octect in the pdu contains the SMSC address length
 	 * which is the X following octects it reads. We add 1 octet to
 	 * the read length to take into account this read octet in order
@@ -259,8 +251,8 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 	smsc_len = ril_data[0] + 1;
 	DBG("smsc_len is %d", smsc_len);
 
-	g_ril_append_print_buf("(%s)", ril_pdu);
-	g_ril_print_unsol(data->ril, message);
+	g_ril_append_print_buf(sd->ril, "(%s)", ril_pdu);
+	g_ril_print_unsol(sd->ril, message);
 
 	/* Last parameter is 'tpdu_len' ( substract SMSC length ) */
 	ofono_sms_deliver_notify(sms, ril_data,
@@ -276,13 +268,13 @@ static void ril_sms_notify(struct ril_msg *message, gpointer user_data)
 	/* TODO: should ACK be sent for either of the error cases? */
 
 	/* ACK the incoming NEW_SMS; ignore response so no cb needed */
-	ret = g_ril_send(data->ril, request,
+	ret = g_ril_send(sd->ril, request,
 			rilp.data,
 			rilp.size,
 			NULL, NULL, NULL);
 
-	g_ril_append_print_buf("(1,0)");
-	g_ril_print_request(data->ril, ret, request);
+	g_ril_append_print_buf(sd->ril, "(1,0)");
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 	return;

@@ -86,7 +86,10 @@ static char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
         G_RIL_TRACE(gril, "[%04d]< %s", message->serial_no,	\
 			ril_request_id_to_string(message->req))
 
-#define g_ril_append_print_buf(x...)  sprintf(print_buf, x)
+#define g_ril_append_print_buf(gril, x...)  do {    \
+	if (g_ril_get_trace(gril))                  \
+		sprintf(print_buf, x);              \
+} while (0)
 
 #define g_ril_print_unsol(gril, message)					\
         G_RIL_TRACE(gril, "[UNSOL]< %s %s", ril_unsol_request_to_string(message->req), \

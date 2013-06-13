@@ -114,7 +114,7 @@ static gboolean power_on(gpointer user_data)
 	ret = g_ril_send(ril->modem, request,
 				rilp.data, rilp.size, power_cb, modem, NULL);
 
-	g_ril_append_print_buf("(1)");
+	g_ril_append_print_buf(ril->modem, "(1)");
 	g_ril_print_request(ril->modem, ret, request);
 
 	parcel_free(&rilp);

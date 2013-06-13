@@ -88,7 +88,7 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 			rilp.size, volume_mute_cb, cbd, g_free);
 	parcel_free(&rilp);
 
-	g_ril_append_print_buf("(%d)", muted);
+	g_ril_append_print_buf(cvd->ril, "(%d)", muted);
 	g_ril_print_request(cvd->ril, ret, request);
 
 	if (ret <= 0) {
@@ -113,7 +113,7 @@ static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 	ril_util_init_parcel(message, &rilp);
 	muted = parcel_r_int32(&rilp);
 
-	g_ril_append_print_buf("{%d}", muted);
+	g_ril_append_print_buf(cvd->ril, "{%d}", muted);
 	g_ril_print_response(cvd->ril, message);
 
 	ofono_call_volume_set_muted(cv, muted);
