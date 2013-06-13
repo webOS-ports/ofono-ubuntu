@@ -64,10 +64,6 @@
 /* FID/path of SIM/USIM root directory */
 #define ROOTMF "3F00"
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 /*
  * TODO: CDMA/IMS
  *
@@ -108,11 +104,9 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		hex_path = encode_hex(db_path, len, 0);
 		parcel_w_string(rilp, (char *) hex_path);
 
-#ifdef RIL_DEBUG_TRACE
-		ril_append_print_buf("%spath=%s,",
-				print_buf,
-				hex_path);
-#endif
+		g_ril_append_print_buf("%spath=%s,",
+					print_buf,
+					hex_path);
 
 		g_free(hex_path);
 	} else if (fileid == SIM_EF_ICCID_FILEID || fileid == SIM_EFPL_FILEID) {
@@ -128,11 +122,9 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		 */
 		parcel_w_string(rilp, (char *) ROOTMF);
 
-#ifdef RIL_DEBUG_TRACE
-		ril_append_print_buf("%spath=%s,",
-				print_buf,
-				ROOTMF);
-#endif
+		g_ril_append_print_buf("%spath=%s,",
+					print_buf,
+					ROOTMF);
 	} else {
 		/*
 		 * The only known case of this is EFPHASE_FILED (0x6FAE).
@@ -149,6 +141,7 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_file_info_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	gboolean ok = FALSE;
 	int sw1 = 0, sw2 = 0, response_len = 0;
@@ -165,7 +158,8 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if ((response = (guchar *)
-		ril_util_parse_sim_io_rsp(message,
+		ril_util_parse_sim_io_rsp(sd->ril,
+						message,
 						&sw1,
 						&sw2,
 						&response_len)) == NULL) {
@@ -221,19 +215,18 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int request = RIL_REQUEST_SIM_IO;
 	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
-			CMD_GET_RESPONSE,
-			fileid);
-#endif
+	g_ril_start_request;
+	g_ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
+				print_buf,
+				CMD_GET_RESPONSE,
+				fileid);
 
 	set_path(sd, &rilp, fileid, path, path_len);
 
@@ -259,19 +252,10 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 				rilp.size,
 				ril_file_info_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			print_buf,
-			0,
-			0,
-			15,
-			NULL,
-			NULL,
-			sd->app_id);
-
-	ril_close_request;
-	ril_print_request(ret, RIL_REQUEST_SIM_IO);
-#endif
+	g_ril_append_print_buf("%s0,0,15,(null),pin2=(null),aid=%s)",
+				print_buf,
+				sd->app_id);
+	g_ril_print_request(sd->ril, ret, RIL_REQUEST_SIM_IO);
 
 	parcel_free(&rilp);
 
@@ -286,6 +270,7 @@ static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_read_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	int sw1 = 0, sw2 = 0, response_len = 0;
 	guchar *response = NULL;
@@ -297,7 +282,8 @@ static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if ((response = (guchar *)
-		ril_util_parse_sim_io_rsp(message,
+		ril_util_parse_sim_io_rsp(sd->ril,
+						message,
 						&sw1,
 						&sw2,
 						&response_len)) == NULL) {
@@ -324,14 +310,11 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int request = RIL_REQUEST_SIM_IO;
 	guint ret;
+	cbd->user = sd;
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
-			CMD_READ_BINARY,
-			fileid);
-#endif
+	g_ril_append_print_buf("(cmd=0x%.2X,efid=0x%.4X,",
+				CMD_READ_BINARY,
+				fileid);
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_BINARY);
@@ -352,19 +335,13 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			print_buf,
-			(start >> 8),
-			(start & 0xff),
-			length,
-			NULL,
-			NULL,
-			sd->app_id);
-
-	ril_close_request;
-	ril_print_request(ret, request);
-#endif
+	g_ril_append_print_buf("%s%d,%d,%d,(null),pin2=(null),aid=%s)",
+				print_buf,
+				(start >> 8),
+				(start & 0xff),
+				length,
+				sd->app_id);
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -384,18 +361,15 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	struct parcel rilp;
 	int request = RIL_REQUEST_SIM_IO;
 	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_RECORD);
 	parcel_w_int32(&rilp, fileid);
 
-#ifdef RIL_TRACE_DEBUG
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
+	g_ril_append_print_buf("(cmd=0x%.2X,efid=0x%.4X,",
 			CMD_GET_RESPONSE,
 			fileid);
-#endif
 
 	set_path(sd, &rilp, fileid, path, path_len);
 
@@ -412,18 +386,13 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
 
-#ifdef RIL_TRACE_DEBUG
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
+	g_ril_append_print_buf("%s%d,%d,%d,(null),pin2=(null),aid=%s)",
 			print_buf,
 			record,
 			4,
 			length,
-			NULL,
-			NULL,
 			sd->app_id);
-	ril_close_request;
-	ril_print_request(ret, request);
-#endif
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -437,6 +406,7 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_imsi_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	struct parcel rilp;
 	gchar *imsi;
@@ -457,10 +427,8 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
         /* FIXME: g_assert(message->buf_len <= 19); */
 	imsi = parcel_r_string(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("{%s}", imsi);
-	ril_print_response(message);
-#endif
+	g_ril_append_print_buf("{%s}", imsi);
+	g_ril_print_response(sd->ril, message);
 
 	cb(&error, imsi, cbd->data);
 	g_free(imsi);
@@ -474,6 +442,7 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	struct parcel rilp;
 	int request = RIL_REQUEST_GET_IMSI;
 	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);            /* Number of params */
@@ -482,10 +451,8 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	ret = g_ril_send(sd->ril, request,
 				rilp.data, rilp.size, ril_imsi_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(%s)", sd->app_id);
-	ril_print_request(ret, request);
-#endif
+	g_ril_append_print_buf("(%s)", sd->app_id);
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -501,7 +468,7 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct sim_app app;
 
-	if (ril_util_parse_sim_status(message, &app)) {
+	if (ril_util_parse_sim_status(sd->ril, message, &app)) {
 		if (app.app_id)
 			sd->app_id = app.app_id;
 
@@ -523,9 +490,7 @@ static int send_get_sim_status(struct ofono_sim *sim)
 	ret = g_ril_send(sd->ril, request,
 				NULL, 0, sim_status_cb, sim, NULL);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(sd->ril, ret, request);
 
 	return ret;
 }

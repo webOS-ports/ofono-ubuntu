@@ -40,6 +40,11 @@
 #include "ringbuffer.h"
 #include "gril.h"
 
+#define RIL_TRACE(ril, fmt, arg...) do {	\
+	if (ril->trace == TRUE)		        \
+		ofono_debug(fmt, ## arg); 	\
+} while (0)
+
 #define COMMAND_FLAG_EXPECT_PDU			0x1
 #define COMMAND_FLAG_EXPECT_SHORT_PROMPT	0x2
 
@@ -87,6 +92,8 @@ struct ril_s {
 	gboolean suspended;			/* Are we suspended? */
 	GRilDebugFunc debugf;			/* debugging output function */
 	gpointer debug_data;			/* Data to pass to debug func */
+	gboolean debug;
+	gboolean trace;
 	GSList *response_lines;			/* char * lines of the response */
 	gint timeout_source;
 	gboolean destroyed;			/* Re-entrancy guard */
@@ -229,10 +236,9 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 	if (r == NULL)
 		return 0;
 
-#ifdef GRIL_DEBUG
-        DBG("req: %s, id: %d, data_len: %d",
+
+	DBG("req: %s, id: %d, data_len: %d",
 		ril_request_id_to_string(req), id, data_len);
-#endif
 
         /* RIL request: 8 byte header + data */
         len = 8 + data_len;
@@ -335,22 +341,18 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 	for (i = 0; i < count; i++) {
 		req = g_queue_peek_nth(p->command_queue, i);
 
-#ifdef GRIL_DEBUG
 		DBG("comparing req->id: %d to message->serial_no: %d",
 			req->id, message->serial_no);
-#endif
 
 		if (req->id == message->serial_no) {
 			found = TRUE;
 			message->req = req->req;
 
-#ifdef RIL_DEBUG_TRACE
 			if (message->error != RIL_E_SUCCESS)
-				TRACE("[%04d]< %s failed %s",
-					message->serial_no,
-					ril_request_id_to_string(message->req),
-					ril_error_to_string(message->error));
-#endif
+				RIL_TRACE(p, "[%04d]< %s failed %s",
+						message->serial_no,
+						ril_request_id_to_string(message->req),
+						ril_error_to_string(message->error));
 
 			req = g_queue_pop_nth(p->command_queue, i);
 			if (req->callback)
@@ -406,28 +408,17 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 		req_key = *((int *)key);
 		notify = value;
 
-                /*
-		 * TODO: add #ifdef...
-		 * DBG("checking req_key: %d to req: %d", req_key, message->req);
-		 */
-
 		if (req_key != message->req)
 			continue;
 
-		list_item = notify->nodes;
+		list_item = (GList *) notify->nodes;
 
 		while (list_item != NULL) {
 			node = list_item->data;
 
-			/*
-			 * TODO: add #ifdef...
-			 * DBG("about to callback: notify: %x, node: %x, notify->nodes: %x, callback: %x",
-			 *	notify, node, notify->nodes, node->callback);
-			 */
-
 			node->callback(message, node->user_data);
 			found = TRUE;
-			list_item = g_slist_next(list_item);
+			list_item = (GList *) g_slist_next(list_item);
 		}
 	}
 
@@ -682,10 +673,6 @@ static gboolean can_write_data(gpointer data)
 					req->data + ril->req_bytes_written,
 					towrite);
 
-#ifdef GRIL_DEBUG
-	DBG("bytes_written: %d", bytes_written);
-#endif
-
 	if (bytes_written == 0)
 		return FALSE;
 
@@ -799,6 +786,7 @@ static struct ril_s *create_ril()
 	ril->next_gid = 0;
 	ril->debugf = NULL;
 	ril->req_bytes_written = 0;
+	ril->trace = FALSE;
 
 	sk = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sk < 0) {
@@ -915,12 +903,6 @@ static guint ril_register(struct ril_s *ril, guint group,
 	node->user_data = user_data;
 
 	notify->nodes = g_slist_prepend(notify->nodes, node);
-
-#ifdef GRIL_DEBUG
-	DBG("after pre-pend; notify: %x, node %x, notify->nodes: %x, callback: %x",
-		(guint) notify, (guint) node,
-		(guint) notify->nodes, (guint) node->callback);
-#endif
 
 	return node->id;
 }
@@ -1059,9 +1041,7 @@ guint g_ril_send(GRil *ril, const guint req, const char *data,
 	g_queue_push_tail(p->command_queue, r);
 
 	if (g_queue_get_length(p->command_queue) == 1) {
-#ifdef GRIL_DEBUG
 		DBG("calling wakeup_writer: qlen: %d", g_queue_get_length(p->command_queue));
-#endif
 		ril_wakeup_writer(p);
 	}
 
@@ -1101,7 +1081,25 @@ void g_ril_unref(GRil *ril)
 	g_free(ril);
 }
 
-gboolean g_ril_set_debug(GRil *ril,
+gboolean g_ril_get_trace(GRil *ril)
+{
+
+	if (ril == NULL || ril->parent == NULL)
+		return FALSE;
+
+	return ril->parent->trace;
+}
+
+gboolean g_ril_set_trace(GRil *ril, gboolean trace)
+{
+
+	if (ril == NULL || ril->parent == NULL)
+		return FALSE;
+
+	return (ril->parent->trace = trace);
+}
+
+gboolean g_ril_set_debugf(GRil *ril,
 			GRilDebugFunc func, gpointer user_data)
 {
 

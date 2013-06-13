@@ -54,6 +54,46 @@ typedef void (*GRilResponseFunc)(struct ril_msg *message, gpointer user_data);
 
 typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
 
+/**
+ * TRACE:
+ * @fmt: format string
+ * @arg...: list of arguments
+ *
+ * Simple macro around ofono_debug() used for tracing RIL messages
+ * name it is called in.
+ */
+#define G_RIL_TRACE(gril, fmt, arg...) do {	\
+	if (g_ril_get_trace(gril))		\
+		ofono_debug(fmt, ## arg); 	\
+} while (0)
+
+#define RIL_PRINT_BUF_SIZE 8096
+static char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
+
+#define g_ril_start_request           sprintf(print_buf, "(")
+#define g_ril_close_request           sprintf(print_buf, "%s)", print_buf)
+#define g_ril_print_request(gril, token, req)			\
+        G_RIL_TRACE(gril, "[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
+#define g_ril_print_request_no_args(gril, token, req)			\
+        G_RIL_TRACE(gril, "[%04d]> %s", token, ril_request_id_to_string(req))
+
+#define g_ril_start_response          sprintf(print_buf, "{")
+#define g_ril_close_response          sprintf(print_buf, "%s}", print_buf)
+#define g_ril_print_response(gril, message)           \
+        G_RIL_TRACE(gril, "[%04d]< %s %s", message->serial_no,			\
+			ril_request_id_to_string(message->req), print_buf)
+#define g_ril_print_response_no_args(gril, message)		\
+        G_RIL_TRACE(gril, "[%04d]< %s", message->serial_no,	\
+			ril_request_id_to_string(message->req))
+
+#define g_ril_append_print_buf(x...)  sprintf(print_buf, x)
+
+#define g_ril_print_unsol(gril, message)					\
+        G_RIL_TRACE(gril, "[UNSOL]< %s %s", ril_unsol_request_to_string(message->req), \
+			print_buf)
+#define g_ril_print_unsol_no_args(gril, message)				\
+        G_RIL_TRACE(gril, "[UNSOL]< %s", ril_unsol_request_to_string(message->req))
+
 GRil *g_ril_new();
 
 GIOChannel *g_ril_get_channel(GRil *ril);
@@ -70,12 +110,15 @@ void g_ril_resume(GRil *ril);
 gboolean g_ril_set_disconnect_function(GRil *ril, GRilDisconnectFunc disconnect,
 					gpointer user_data);
 
+gboolean g_ril_get_trace(GRil *ril);
+gboolean g_ril_set_trace(GRil *ril, gboolean trace);
+
 /*!
  * If the function is not NULL, then on every read/write from the GIOChannel
  * provided to GRil the logging function will be called with the
  * input/output string and user data
  */
-gboolean g_ril_set_debug(GRil *ril, GRilDebugFunc func, gpointer user_data);
+gboolean g_ril_set_debugf(GRil *ril, GRilDebugFunc func, gpointer user_data);
 
 /*!
  * Queue an RIL request for execution.  The request contents are given

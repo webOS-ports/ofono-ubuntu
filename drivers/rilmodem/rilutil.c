@@ -50,10 +50,6 @@ struct ril_util_sim_state_query {
 	GDestroyNotify destroy;
 };
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 static gboolean cpin_check(gpointer userdata);
 
 void decode_ril_error(struct ofono_error *error, const char *final)
@@ -220,7 +216,7 @@ void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req)
 	g_free(req);
 }
 
-GSList *ril_util_parse_clcc(struct ril_msg *message)
+GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message)
 {
 	struct ofono_call *call;
 	struct parcel rilp;
@@ -230,9 +226,8 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 
 	ril_util_init_parcel(message, &rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_response;
-#endif
+	g_ril_start_response;
+
 	/* Number of RIL_Call structs */
 	num = parcel_r_int32(&rilp);
 	for (i = 0; i < num; i++) {
@@ -270,27 +265,24 @@ GSList *ril_util_parse_clcc(struct ril_msg *message)
 		else
 			call->clip_validity = 2;
 
-#ifdef RIL_DEBUG_TRACE
 		/* TODO: figure out how to line-wrap properly
 		 * without introducing spaces in string.
 		 */
-		ril_append_print_buf("%s [id=%d,status=%d,type=%d,number=%s,name=%s]",
-				call->id, call->status, call->type,
-				call->phone_number.number, call->name);
-#endif
+		g_ril_append_print_buf("%s [id=%d,status=%d,type=%d,number=%s,name=%s]",
+					print_buf,
+					call->id, call->status, call->type,
+					call->phone_number.number, call->name);
 
 		l = g_slist_insert_sorted(l, call, ril_util_call_compare);
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_close_response;
-	ril_print_response(message);
-#endif
+	g_ril_close_response;
+	g_ril_print_response(gril, message);
 
 	return l;
 }
 
-GSList *ril_util_parse_data_call_list(struct ril_msg *message)
+GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message)
 {
 	struct data_call *call;
 	struct parcel rilp;
@@ -311,14 +303,9 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 	/* Number of calls */
 	num = parcel_r_int32(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_response;
-
-	ril_append_print_buf("%sversion=%d,num=%d",
-			print_buf,
+	g_ril_append_print_buf("(version=%d,num=%d",
 			version,
 			num);
-#endif
 
 	for (i = 0; i < num; i++) {
 		call = g_try_new(struct data_call, 1);
@@ -336,11 +323,10 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 		call->dnses = parcel_r_string(&rilp);
 		call->gateways = parcel_r_string(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
 		/* TODO: figure out how to line-wrap properly
 		 * without introducing spaces in string.
 		 */
-		ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
+		g_ril_append_print_buf("%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
 				print_buf,
 				call->status,
 				call->retry,
@@ -351,20 +337,18 @@ GSList *ril_util_parse_data_call_list(struct ril_msg *message)
 				call->addresses,
 				call->dnses,
 				call->gateways);
-#endif
 
 		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_close_response;
-	ril_print_response(message);
-#endif
+	g_ril_close_response;
+	g_ril_print_response(gril, message);
 
 	return l;
 }
 
-char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+char *ril_util_parse_sim_io_rsp(GRil *gril,
+				struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len)
 {
@@ -394,22 +378,19 @@ char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
 							(long *) hex_len, -1);
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_response;
-	ril_append_print_buf("%ssw1=0x%.2X,sw2=0x%.2X,%s",
-		       print_buf,
+	g_ril_append_print_buf("(sw1=0x%.2X,sw2=0x%.2X,%s)",
 			*sw1,
 			*sw2,
 			response);
-	ril_close_response;
-	ril_print_response(message);
-#endif
+	g_ril_print_response(gril, message);
 
 	g_free(response);
 	return hex_response;
 }
 
-gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
+gboolean ril_util_parse_sim_status(GRil *gril,
+					struct ril_msg *message,
+					struct sim_app *app)
 {
 	struct parcel rilp;
 	gboolean result = FALSE;
@@ -418,7 +399,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
 	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
 
-	ril_append_print_buf("[%04d]< %s",
+	g_ril_append_print_buf("[%04d]< %s",
 			message->serial_no,
 			ril_request_id_to_string(message->req));
 
@@ -454,21 +435,17 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 	ims_index = parcel_r_int32(&rilp);
 	num_apps = parcel_r_int32(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
 	/* TODO:
 	 * How do we handle long (>80 chars) ril_append_print_buf strings?
 	 * Using line wrapping ( via '\' ) introduces spaces in the output.
 	 * Do we just make a style-guide exception for PrintBuf operations?
 	 */
-        ril_start_response;
-	ril_append_print_buf("%s card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
-		       print_buf,
+	g_ril_append_print_buf("(card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
 		       card_state,
 		       pin_state,
 		       gsm_umts_index,
 		       -1,
 		       ims_index);
-#endif
 
 	for (i = 0; i < num_apps; i++) {
 		app_type = parcel_r_int32(&rilp);
@@ -485,8 +462,7 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		pin1_state = parcel_r_int32(&rilp);
 		pin2_state = parcel_r_int32(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-		ril_append_print_buf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
+		g_ril_append_print_buf("%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
 				print_buf,
 				app_type,
 				app_state,
@@ -496,7 +472,6 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 				pin_replaced,
 				pin1_state,
 				pin2_state);
-#endif
 
 		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
 		if (i == gsm_umts_index && app) {
@@ -512,10 +487,8 @@ gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app)
 		g_free(app_str);
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_close_response;
-	ril_print_response(message);
-#endif
+	g_ril_close_response;
+	g_ril_print_response(gril, message);
 
 	if (card_state == RIL_CARDSTATE_PRESENT)
 		result = TRUE;
@@ -523,7 +496,8 @@ done:
 	return result;
 }
 
-gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
+gboolean ril_util_parse_reg(GRil *gril,
+				struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech, int *max_calls)
 {
 	struct parcel rilp;
@@ -629,16 +603,14 @@ gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
 			*tech = -1;
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
+	g_ril_append_print_buf("{%s,%s,%s,%s,%s,%s}",
 				registration_status_to_string(*status),
 				slac,
 				sci,
 				registration_tech_to_string(*tech),
 				sreason,
 				smax);
-	ril_print_response(message);
-#endif
+	g_ril_print_response(gril, message);
 
 	/* Free our parcel handlers */
 	g_free(sstatus);
@@ -654,7 +626,7 @@ error:
 	return FALSE;
 }
 
-gint ril_util_parse_sms_response(struct ril_msg *message)
+gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message)
 {
 	struct parcel rilp;
 	int error, mr;
@@ -671,16 +643,14 @@ gint ril_util_parse_sms_response(struct ril_msg *message)
 	error = parcel_r_int32(&rilp);
 
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("{%d,%d,%d}",
+	g_ril_append_print_buf("{%d,%d,%d}",
 				mr, ack_pdu, error);
-	ril_print_response(message);
-#endif
+	g_ril_print_response(gril, message);
 
 	return mr;
 }
 
-gint ril_util_get_signal(struct ril_msg *message)
+gint ril_util_get_signal(GRil *gril, struct ril_msg *message)
 {
 	struct parcel rilp;
 	int gw_signal, cdma_dbm, evdo_dbm, lte_signal;
@@ -709,15 +679,13 @@ gint ril_util_get_signal(struct ril_msg *message)
 	parcel_r_int32(&rilp); /* rssnr */
 	parcel_r_int32(&rilp); /* cqi */
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(gw: %d, cdma: %d, evdo: %d, lte: %d)",
-			gw_signal, cdma_dbm, evdo_dbm, lte_signal);
+	g_ril_append_print_buf("(gw: %d, cdma: %d, evdo: %d, lte: %d)",
+				gw_signal, cdma_dbm, evdo_dbm, lte_signal);
 
 	if (message->unsolicited)
-		ril_print_unsol(message);
+		g_ril_print_unsol(gril, message);
 	else
-		ril_print_response(message);
-#endif
+		g_ril_print_response(gril, message);
 
 	/* Return the first valid one */
 	if ((gw_signal != 99) && (gw_signal != -1))

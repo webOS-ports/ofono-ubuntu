@@ -24,52 +24,6 @@
 
 #include "parcel.h"
 
-/* TODO:
- *
- *  a) guard with ifdef
- *  b) use ENV strategy to set debug flag, and
- *     create similar macro TRACE? that enable
- *     tracing to enabled at runtime?
- *
- *  Based on code from:
- *
- *  $AOSP/hardware/ril/libril/ril.cpp
- *
- * TODO: get rid of source code output for trace calls.
- * ( eg. driver/rilmodem/gprs.c:gprs_foo(): )
- */
-
-#ifdef RIL_DEBUG_TRACE
-#define ril_start_request           sprintf(print_buf, "(")
-#define ril_close_request           sprintf(print_buf, "%s)", print_buf)
-#define ril_print_request(token, req)           \
-        TRACE("[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
-#define ril_print_request_no_args(token, req)	\
-        TRACE("[%04d]> %s", token, ril_request_id_to_string(req))
-
-#define ril_start_response          sprintf(print_buf, "{")
-#define ril_close_response          sprintf(print_buf, "%s}", print_buf)
-#define ril_print_response(message)           \
-        TRACE("[%04d]< %s %s", message->serial_no, \
-			ril_request_id_to_string(message->req), print_buf)
-#define ril_print_response_no_args(message)           \
-        TRACE("[%04d]< %s", message->serial_no, \
-			ril_request_id_to_string(message->req))
-
-#define ril_clear_print_buf         print_buf[0] = 0
-#define ril_remove_last_char        print_buf[strlen(print_buf)-1] = 0
-#define ril_append_print_buf(x...)  sprintf(print_buf, x)
-
-#define ril_print_unsol(message)           \
-        TRACE("[UNSOL]< %s %s", ril_unsol_request_to_string(message->req), \
-			print_buf)
-#define ril_print_unsol_no_args(message)           \
-        TRACE("[UNSOL]< %s", ril_unsol_request_to_string(message->req))
-
-// request, response, and unsolicited msg print macro
-#define PRINT_BUF_SIZE 8096
-#endif
-
 /* TODO: create a table lookup*/
 #define PREFIX_30_NETMASK "255.255.255.252"
 #define PREFIX_29_NETMASK "255.255.255.248"
@@ -142,18 +96,18 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 						GDestroyNotify destroy);
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
-GSList *ril_util_parse_clcc(struct ril_msg *message);
-GSList *ril_util_parse_data_call_list(struct ril_msg *message);
-char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message);
+GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message);
+char *ril_util_parse_sim_io_rsp(GRil *gril, struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len);
-gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app);
-gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
+gboolean ril_util_parse_sim_status(GRil *gril, struct ril_msg *message, struct sim_app *app);
+gboolean ril_util_parse_reg(GRil *gril, struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech, int *max_calls);
 
-gint ril_util_parse_sms_response(struct ril_msg *message);
+gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message);
 
-gint ril_util_get_signal(struct ril_msg *message);
+gint ril_util_get_signal(GRil *gril, struct ril_msg *message);
 
 struct cb_data {
 	void *cb;

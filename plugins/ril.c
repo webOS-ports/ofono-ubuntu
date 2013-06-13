@@ -68,10 +68,6 @@ struct ril_data {
 	ofono_bool_t reported;
 };
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 static gboolean power_on(gpointer user_data);
 
 static void ril_debug(const char *str, void *user_data)
@@ -97,9 +93,7 @@ static void power_cb(struct ril_msg *message, gpointer user_data)
 			ofono_error("Max retries for radio power on exceeded!");
 	} else {
 
-#ifdef RIL_DEBUG_TRACE
-		ril_print_response_no_args(message);
-#endif
+		g_ril_print_response_no_args(ril->modem, message);
 		DBG("Radio POWER-ON OK, calling set_powered(TRUE).");
 		ofono_modem_set_powered(modem, TRUE);
 	}
@@ -120,10 +114,8 @@ static gboolean power_on(gpointer user_data)
 	ret = g_ril_send(ril->modem, request,
 				rilp.data, rilp.size, power_cb, modem, NULL);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(1)");
-	ril_print_request(ret, request);
-#endif
+	g_ril_append_print_buf("(1)");
+	g_ril_print_request(ril->modem, ret, request);
 
 	parcel_free(&rilp);
 
@@ -137,7 +129,7 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
 	/* Returns TRUE if cardstate == PRESENT */
-	if (ril_util_parse_sim_status(message, NULL)) {
+	if (ril_util_parse_sim_status(ril->modem, message, NULL)) {
 		DBG("have_sim = TRUE; powering on modem.");
 
 		/* TODO: check PinState=DISABLED, for now just
@@ -158,9 +150,7 @@ static int send_get_sim_status(struct ofono_modem *modem)
 	ret = g_ril_send(ril->modem, request,
 				NULL, 0, sim_status_cb, modem, NULL);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(ril->modem, ret, request);
 
 	return ret;
 }
@@ -266,9 +256,12 @@ static int ril_enable(struct ofono_modem *modem)
 		return -EIO;
 	}
 
-	if (getenv("OFONO_RIL_DEBUG")) {
-		DBG("calling g_ril_set_debug");
-		g_ril_set_debug(ril->modem, ril_debug, "Device: ");
+	if (getenv("OFONO_RIL_TRACE")) {
+		g_ril_set_trace(ril->modem, TRUE);
+	}
+
+	if (getenv("OFONO_RIL_HEX_TRACE")) {
+		g_ril_set_debugf(ril->modem, ril_debug, "Device: ");
 	}
 
 	send_get_sim_status(modem);
@@ -363,4 +356,3 @@ static void ril_exit(void)
 
 OFONO_PLUGIN_DEFINE(ril, "RIL modem driver", VERSION,
 			OFONO_PLUGIN_PRIORITY_DEFAULT, ril_init, ril_exit)
-

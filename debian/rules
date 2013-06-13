@@ -11,6 +11,5 @@ DEB_DH_INSTALLINIT_ARGS := --no-restart-on-upgrade
 common-binary-post-install-arch:: list-missing
 
 DEB_CONFIGURE_EXTRA_FLAGS := --disable-bluetooth --disable-dundee --disable-udev
-CFLAGS += -DRIL_DEBUG_TRACE
 
 include $(CURDIR)/debian/update-patches.mk

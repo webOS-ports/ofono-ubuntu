@@ -48,22 +48,17 @@ struct cv_data {
 	unsigned int vendor;
 };
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 static void volume_mute_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_call_volume_cb_t cb = cbd->cb;
+	struct cv_data *cvd = cbd->user;
 	struct ofono_error error;
 
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 
-#ifdef RIL_DEBUG_TRACE
-		ril_print_response_no_args(message);
-#endif
+		g_ril_print_response_no_args(cvd->ril, message);
 
 	} else {
 		ofono_error("Could not set the ril mute state");
@@ -81,6 +76,7 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 	struct parcel rilp;
 	int request = RIL_REQUEST_SET_MUTE;
 	int ret;
+	cbd->user = cvd;
 
 	DBG("");
 
@@ -92,10 +88,8 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 			rilp.size, volume_mute_cb, cbd, g_free);
 	parcel_free(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(%d)", muted);
-	ril_print_request(ret, request);
-#endif
+	g_ril_append_print_buf("(%d)", muted);
+	g_ril_print_request(cvd->ril, ret, request);
 
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_SET_MUTE failed.");
@@ -107,6 +101,7 @@ static void ril_call_volume_mute(struct ofono_call_volume *cv, int muted,
 static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_call_volume *cv = user_data;
+	struct cv_data *cvd = ofono_call_volume_get_data(cv);
 	struct parcel rilp;
 	int muted;
 
@@ -118,10 +113,8 @@ static void probe_mute_cb(struct ril_msg *message, gpointer user_data)
 	ril_util_init_parcel(message, &rilp);
 	muted = parcel_r_int32(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("{%d}", muted);
-	ril_print_response(message);
-#endif
+	g_ril_append_print_buf("{%d}", muted);
+	g_ril_print_response(cvd->ril, message);
 
 	ofono_call_volume_set_muted(cv, muted);
 }
@@ -136,9 +129,7 @@ static void call_probe_mute(gpointer user_data)
 	ret = g_ril_send(cvd->ril, request, NULL, 0,
 				probe_mute_cb, cv, NULL);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(cvd->ril, ret, request);
 }
 
 static gboolean ril_delayed_register(gpointer user_data)

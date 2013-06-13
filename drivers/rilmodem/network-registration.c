@@ -102,7 +102,7 @@ static void ril_creg_cb(struct ril_msg *message, gpointer user_data)
 
 	decode_ril_error(&error, "OK");
 
-	if (ril_util_parse_reg(message, &status,
+	if (ril_util_parse_reg(nd->ril, message, &status,
 				&lac, &ci, &tech, NULL) == FALSE) {
 		CALLBACK_WITH_FAILURE(cb, -1, -1, -1, -1, cbd->data);
 		return;
@@ -138,9 +138,7 @@ static void ril_network_state_change(struct ril_msg *message, gpointer user_data
 	if (message->req != RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED)
 		goto error;
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_unsol_no_args(message);
-#endif
+	g_ril_print_unsol_no_args(nd->ril, message);
 
 	ret = g_ril_send(nd->ril, request, NULL,
 				0, ril_creg_cb, cbd, g_free);
@@ -148,9 +146,7 @@ static void ril_network_state_change(struct ril_msg *message, gpointer user_data
 	/* For operator update ofono will use the current_operator cb
 	 * so we don't need to probe ril here */
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
 
 	if (ret <= 0) {
 	error:
@@ -173,9 +169,7 @@ static void ril_registration_status(struct ofono_netreg *netreg,
 	ret = g_ril_send(nd->ril, request, NULL,
 				0, ril_creg_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -222,13 +216,11 @@ static void ril_cops_cb(struct ril_msg *message, gpointer user_data)
 	op.status = OPERATOR_STATUS_CURRENT;
 	op.tech = nd->tech;
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(lalpha=%s, salpha=%s, numeric=%s, %s, mcc=%s, mnc=%s, %s)",
+	g_ril_append_print_buf("(lalpha=%s, salpha=%s, numeric=%s, %s, mcc=%s, mnc=%s, %s)",
 				lalpha, salpha, numeric,
 				op.name, op.mcc, op.mnc,
 				registration_tech_to_string(op.tech));
-	ril_print_response(message);
-#endif
+	g_ril_print_response(nd->ril, message);
 
 	g_free(lalpha);
 	g_free(salpha);
@@ -255,9 +247,7 @@ static void ril_current_operator(struct ofono_netreg *netreg,
 	ret = g_ril_send(nd->ril, request, NULL,
 				0, ril_cops_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -269,6 +259,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_netreg_operator_list_cb_t cb = cbd->cb;
+	struct netreg_data *nd = cbd->user;
 	struct ofono_network_operator *list;
 	struct ofono_error error;
 	struct parcel rilp;
@@ -284,9 +275,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_start_response;
-#endif
+	g_ril_start_response;
 
 	/* Number of operators at the list (4 strings for every operator) */
 	noperators = parcel_r_int32(&rilp) / 4;
@@ -327,12 +316,10 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 		else if (!strcmp(status, "forbidden"))
 			list[i].status = OPERATOR_STATUS_FORBIDDEN;
 
-#ifdef RIL_DEBUG_TRACE
-		ril_append_print_buf("%s [operator=%s, %s, %s, status: %s]",
+		g_ril_append_print_buf("%s [operator=%s, %s, %s, status: %s]",
 					print_buf,
 					list[i].name, list[i].mcc,
 					list[i].mnc, status);
-#endif
 
 		g_free(lalpha);
 		g_free(salpha);
@@ -340,10 +327,8 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 		g_free(status);
 	}
 
-#ifdef RIL_DEBUG_TRACE
-	ril_close_response;
-	ril_print_response(message);
-#endif
+	g_ril_close_response;
+	g_ril_print_response(nd->ril, message);
 
 	cb(&error, noperators, list, cbd->data);
 
@@ -366,9 +351,7 @@ static void ril_list_operators(struct ofono_netreg *netreg,
 	ret = g_ril_send(nd->ril, request, NULL,
 				0, ril_cops_list_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -380,14 +363,13 @@ static void ril_register_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_netreg_register_cb_t cb = cbd->cb;
+	struct netreg_data *nd = cbd->user;
 	struct ofono_error error;
 
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 
-#ifdef RIL_DEBUG_TRACE
-		ril_print_response_no_args(message);
-#endif
+		g_ril_print_response_no_args(nd->ril, message);
 
 	} else {
 		decode_ril_error(&error, "FAIL");
@@ -403,13 +385,12 @@ static void ril_register_auto(struct ofono_netreg *netreg,
 	struct cb_data *cbd = cb_data_new(cb, data);
 	int request = RIL_REQUEST_SET_NETWORK_SELECTION_AUTOMATIC;
 	int ret;
+	cbd->user = nd;
 
 	ret = g_ril_send(nd->ril, request,
 				NULL, 0, ril_register_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -439,10 +420,8 @@ static void ril_register_manual(struct ofono_netreg *netreg,
 				cbd, g_free);
 	parcel_free(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(%s)", buf);
-	ril_print_request(ret, request);
-#endif
+	g_ril_append_print_buf("(%s)", buf);
+	g_ril_print_request(nd->ril, ret, request);
 
 	/* In case of error free cbd and return the cb with failure */
 	if (ret <= 0) {
@@ -454,11 +433,12 @@ static void ril_register_manual(struct ofono_netreg *netreg,
 static void ril_strength_notify(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_netreg *netreg = user_data;
+	struct netreg_data *nd = ofono_netreg_get_data(netreg);
 	int strength;
 
 	g_assert(message->req == RIL_UNSOL_SIGNAL_STRENGTH);
 
-	strength = ril_util_get_signal(message);
+	strength = ril_util_get_signal(nd->ril, message);
 	ofono_netreg_strength_notify(netreg, strength);
 
 	return;
@@ -468,6 +448,7 @@ static void ril_strength_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_netreg_strength_cb_t cb = cbd->cb;
+	struct netreg_data *nd = cbd->user;
 	struct ofono_error error;
 	int strength;
 
@@ -478,13 +459,9 @@ static void ril_strength_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	strength = ril_util_get_signal(message);
+	strength = ril_util_get_signal(nd->ril, message);
 	cb(&error, strength, cbd->data);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(%d)", strength);
-	ril_print_response(message);
-#endif
 	return;
 
 error:
@@ -504,9 +481,8 @@ static void ril_signal_strength(struct ofono_netreg *netreg,
 	ret = g_ril_send(nd->ril, request,
 				NULL, 0, ril_strength_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(nd->ril, ret, request);
+
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_SIGNAL_STRENGTH failed.");
 
@@ -532,10 +508,8 @@ static void ril_nitz_notify(struct ril_msg *message, gpointer user_data)
 
 	nitz = parcel_r_string(&rilp);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_append_print_buf("(%s)", nitz);
-	ril_print_unsol(message);
-#endif
+	g_ril_append_print_buf("(%s)", nitz);
+	g_ril_print_unsol(nd->ril, message);
 
 	sscanf(nitz, "%u/%u/%u,%u:%u:%u%c%u,%u", &year, &mon, &mday,
 			&hour, &min, &sec, &tzs, &tzi, &dst);

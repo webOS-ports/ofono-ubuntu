@@ -67,10 +67,6 @@ struct gprs_data {
 	int status;
 };
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 						ofono_gprs_status_cb_t cb,
 						void *data);
@@ -102,6 +98,8 @@ static void ril_gprs_set_pref_network(struct ofono_gprs *gprs)
 {
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct parcel rilp;
+	int request = RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE;
+	int ret;
 
 	DBG("");
 
@@ -116,10 +114,13 @@ static void ril_gprs_set_pref_network(struct ofono_gprs *gprs)
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, PREF_NET_TYPE_GSM_WCDMA);
 
-	if (g_ril_send(gd->ril, RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE,
-			rilp.data, rilp.size, ril_gprs_set_pref_network_cb, NULL, NULL) <= 0) {
+	ret = g_ril_send(gd->ril, request,
+				rilp.data, rilp.size, ril_gprs_set_pref_network_cb, NULL, NULL);
+
+	g_ril_print_request_no_args(gd->ril, ret, request);
+
+	if (ret <= 0)
 		ofono_error("Send RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE failed.");
-	}
 
 	parcel_free(&rilp);
 }
@@ -167,7 +168,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if (ril_util_parse_reg(message, &status,
+	if (ril_util_parse_reg(gd->ril, message, &status,
 				&lac, &ci, &tech, &max_cids) == FALSE) {
 		ofono_error("Failure parsing data registration response.");
 		decode_ril_error(&error, "FAIL");
@@ -214,9 +215,7 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 	ret = g_ril_send(gd->ril, request,
 				NULL, 0, ril_data_reg_cb, cbd, g_free);
 
-#ifdef RIL_DEBUG_TRACE
-	ril_print_request_no_args(ret, request);
-#endif
+	g_ril_print_request_no_args(gd->ril, ret, request);
 
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_DATA_RESTISTRATION_STATE failed.");
