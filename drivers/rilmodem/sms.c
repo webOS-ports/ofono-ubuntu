@@ -147,7 +147,6 @@ static void ril_cmgs(struct ofono_sms *sms, const unsigned char *pdu,
 	cbd->user = sd;
 
         DBG("pdu_len: %d, tpdu_len: %d mms: %d", pdu_len, tpdu_len, mms);
-	g_ril_util_debug_hexdump(FALSE, pdu, pdu_len, sms_debug, "sms-pdu: ");
 
 	/* TODO: if (mms) { ... } */
 
@@ -175,14 +174,8 @@ static void ril_cmgs(struct ofono_sms *sms, const unsigned char *pdu,
 	 *  parcel_w_string() encodes utf8 -> utf16
 	 */
 	tpdu = encode_hex(pdu + smsc_len, tpdu_len, 0);
-	g_ril_util_debug_hexdump(FALSE, (guchar *) tpdu, (tpdu_len * 2),
-					sms_debug, "tpdu: ");
-
 	parcel_w_string(&rilp, tpdu);
 
-	/* Dump the entire parcel */
-	g_ril_util_debug_hexdump(FALSE, (guchar *) rilp.data, rilp.size,
-					sms_debug, "sms-encoded-buf: ");
 	ret = g_ril_send(sd->ril,
 				request,
 				rilp.data,
