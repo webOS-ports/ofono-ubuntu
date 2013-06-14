@@ -226,7 +226,7 @@ GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message)
 
 	ril_util_init_parcel(message, &rilp);
 
-	g_ril_start_response;
+	g_ril_append_print_buf(gril, "{");
 
 	/* Number of RIL_Call structs */
 	num = parcel_r_int32(&rilp);
@@ -277,7 +277,7 @@ GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message)
 		l = g_slist_insert_sorted(l, call, ril_util_call_compare);
 	}
 
-	g_ril_close_response;
+	g_ril_append_print_buf(gril, "%s}", print_buf);
 	g_ril_print_response(gril, message);
 
 	return l;
@@ -344,7 +344,7 @@ GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message)
 		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
 	}
 
-	g_ril_close_response;
+	g_ril_append_print_buf(gril, "%s}", print_buf);
 	g_ril_print_response(gril, message);
 
 	return l;
@@ -493,7 +493,7 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 		g_free(app_str);
 	}
 
-	g_ril_close_response;
+	g_ril_append_print_buf(gril, "%s}", print_buf);
 	g_ril_print_response(gril, message);
 
 	if (card_state == RIL_CARDSTATE_PRESENT)

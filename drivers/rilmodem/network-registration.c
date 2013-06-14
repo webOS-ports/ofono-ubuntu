@@ -273,7 +273,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-	g_ril_start_response;
+	g_ril_append_print_buf(nd->ril, "{");
 
 	/* Number of operators at the list (4 strings for every operator) */
 	noperators = parcel_r_int32(&rilp) / 4;
@@ -326,7 +326,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 		g_free(status);
 	}
 
-	g_ril_close_response;
+	g_ril_append_print_buf(nd->ril, "%s}", print_buf);
 	g_ril_print_response(nd->ril, message);
 
 	cb(&error, noperators, list, cbd->data);
