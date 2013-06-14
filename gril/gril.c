@@ -560,17 +560,13 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 	p->in_read_handler = TRUE;
 
-#ifdef GRIL_DEBUG
 	DBG("len: %d, wrap: %d", len, wrap);
-#endif
 
 	while (p->suspended == FALSE && (p->read_so_far < len)) {
 		gsize rbytes = MIN(len - p->read_so_far, wrap - p->read_so_far);
 
 		if (rbytes < 4) {
-#ifdef GRIL_DEBUG
 			DBG("Not enough bytes for header length: len: %d", len);
-#endif
 			return;
 		}
 
@@ -584,10 +580,7 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 		/* wait for the rest of the record... */
 		if (message == NULL) {
-
-#ifdef GRIL_DEBUG
 			DBG("Not enough bytes for fixed record");
-#endif
 			break;
 		}
 
@@ -634,10 +627,7 @@ static gboolean can_write_data(gpointer data)
 
 	len = req->data_len;
 
-
-#ifdef GRIL_DEBUG
-	 DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
-#endif
+	DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
