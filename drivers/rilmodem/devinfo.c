@@ -126,8 +126,6 @@ static int ril_devinfo_probe(struct ofono_devinfo *info, unsigned int vendor,
 
 	ofono_devinfo_set_data(info, ril);
 
-	DBG("");
-
         /*
 	 * TODO: analyze if capability check is needed
 	 * and/or timer should be adjusted.
