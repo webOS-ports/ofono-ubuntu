@@ -24,28 +24,6 @@
 
 #include "parcel.h"
 
-/* TODO:
- *  Guard with #ifdef RIL_DEBUG
- *  Based on code from:
- *
- *  $AOSP/hardware/ril/libril/ril.cpp
- */
-#define ril_start_request           sprintf(print_buf, "(")
-#define ril_close_request           sprintf(print_buf, "%s)", print_buf)
-#define ril_print_request(token, req)           \
-        ofono_debug("[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
-
-#define ril_start_response          sprintf(print_buf, "%s {", print_buf)
-#define ril_close_response          sprintf(print_buf, "%s}", print_buf)
-#define ril_print_response          ofono_debug("%s", print_buf)
-
-#define ril_clear_print_buf         print_buf[0] = 0
-#define ril_remove_last_char        print_buf[strlen(print_buf)-1] = 0
-#define ril_append_print_buf(x...)  sprintf(print_buf, x)
-
-// request, response, and unsolicited msg print macro
-#define PRINT_BUF_SIZE 8096
-
 /* TODO: create a table lookup*/
 #define PREFIX_30_NETMASK "255.255.255.252"
 #define PREFIX_29_NETMASK "255.255.255.248"
@@ -118,18 +96,18 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 						GDestroyNotify destroy);
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
-GSList *ril_util_parse_clcc(struct ril_msg *message);
-GSList *ril_util_parse_data_call_list(struct ril_msg *message);
-char *ril_util_parse_sim_io_rsp(struct ril_msg *message,
+GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message);
+GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message);
+char *ril_util_parse_sim_io_rsp(GRil *gril, struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len);
-gboolean ril_util_parse_sim_status(struct ril_msg *message, struct sim_app *app);
-gboolean ril_util_parse_reg(struct ril_msg *message, int *status,
+gboolean ril_util_parse_sim_status(GRil *gril, struct ril_msg *message, struct sim_app *app);
+gboolean ril_util_parse_reg(GRil *gril, struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech, int *max_calls);
 
-gint ril_util_parse_sms_response(struct ril_msg *message);
+gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message);
 
-gint ril_util_get_signal(struct ril_msg *message);
+gint ril_util_get_signal(GRil *gril, struct ril_msg *message);
 
 struct cb_data {
 	void *cb;

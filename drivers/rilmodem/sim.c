@@ -64,8 +64,6 @@
 /* FID/path of SIM/USIM root directory */
 #define ROOTMF "3F00"
 
-static char print_buf[PRINT_BUF_SIZE];
-
 /*
  * TODO: CDMA/IMS
  *
@@ -83,13 +81,6 @@ struct sim_data {
 	guint app_type;
 };
 
-static void sim_debug(const gchar *str, gpointer user_data)
-{
-	const char *prefix = user_data;
-
-	ofono_info("%s%s", prefix, str);
-}
-
 static void set_path(struct sim_data *sd, struct parcel *rilp,
 			const int fileid, const guchar *path,
 			const guint path_len)
@@ -97,8 +88,6 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	guchar db_path[6] = { 0x00 };
 	char *hex_path = NULL;
 	int len = 0;
-
-	DBG("");
 
 	if (path_len > 0 && path_len < 7) {
 		memcpy(db_path, path, path_len);
@@ -108,20 +97,17 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 	} else if (sd->app_type == RIL_APPTYPE_SIM) {
 		len = sim_ef_db_get_path_2g(fileid, db_path);
 	} else {
-		DBG("Unsupported app_type: 0%x", sd->app_type);
+		ofono_error("Unsupported app_type: 0%x", sd->app_type);
 	}
 
 	if (len > 0) {
 		hex_path = encode_hex(db_path, len, 0);
 		parcel_w_string(rilp, (char *) hex_path);
 
-		DBG("len > 0");
-
-		/* TODO: make conditional */
-		ril_append_print_buf("%spath=%s,",
-				print_buf,
-				hex_path);
-		/* TODO: make conditional */
+		g_ril_append_print_buf(sd->ril,
+					"%spath=%s,",
+					print_buf,
+					hex_path);
 
 		g_free(hex_path);
 	} else if (fileid == SIM_EF_ICCID_FILEID || fileid == SIM_EFPL_FILEID) {
@@ -137,11 +123,10 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		 */
 		parcel_w_string(rilp, (char *) ROOTMF);
 
-		/* TODO: make conditional */
-		ril_append_print_buf("%spath=%s,",
-				print_buf,
-				ROOTMF);
-		/* TODO: make conditional */
+		g_ril_append_print_buf(sd->ril,
+					"%spath=%s,",
+					print_buf,
+					ROOTMF);
 	} else {
 		/*
 		 * The only known case of this is EFPHASE_FILED (0x6FAE).
@@ -150,8 +135,6 @@ static void set_path(struct sim_data *sd, struct parcel *rilp,
 		 * 'parent3g' member.  This causes a NULL path to
 		 * be returned.
 		 */
-
-		DBG("db_get_path*() returned empty path.");
 		parcel_w_string(rilp, NULL);
 	}
 }
@@ -160,6 +143,7 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_file_info_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	gboolean ok = FALSE;
 	int sw1 = 0, sw2 = 0, response_len = 0;
@@ -168,18 +152,16 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	guchar access[3] = { 0x00, 0x00, 0x00 };
 	guchar file_status = EF_STATUS_VALID;
 
-	DBG("");
-
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
 		goto error;
 	}
 
 	if ((response = (guchar *)
-		ril_util_parse_sim_io_rsp(message,
+		ril_util_parse_sim_io_rsp(sd->ril,
+						message,
 						&sw1,
 						&sw2,
 						&response_len)) == NULL) {
@@ -202,9 +184,6 @@ static void ril_file_info_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	if (response_len) {
-		g_ril_util_debug_hexdump(FALSE, response, response_len,
-						sim_debug, "sim response: ");
-
 		if (response[0] == 0x62) {
 			ok = sim_parse_3g_get_response(response, response_len,
 							&flen, &rlen, &str, access, NULL);
@@ -236,20 +215,19 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
-	int ret;
+	int request = RIL_REQUEST_SIM_IO;
+	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
 
-        /* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
-			CMD_GET_RESPONSE,
-			fileid);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril,
+				"(cmd=0x%.2X,efid=0x%.4X,",
+				CMD_GET_RESPONSE,
+				fileid);
 
 	set_path(sd, &rilp, fileid, path, path_len);
 
@@ -270,24 +248,16 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
-				RIL_REQUEST_SIM_IO,
+				request,
 				rilp.data,
 				rilp.size,
 				ril_file_info_cb, cbd, g_free);
 
-	/* TODO: make conditional */
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			print_buf,
-			0,
-			0,
-			15,
-			NULL,
-			NULL,
-			sd->app_id);
-
-	ril_close_request;
-	ril_print_request(ret, RIL_REQUEST_SIM_IO);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril,
+				"%s0,0,15,(null),pin2=(null),aid=%s)",
+				print_buf,
+				sd->app_id);
+	g_ril_print_request(sd->ril, ret, RIL_REQUEST_SIM_IO);
 
 	parcel_free(&rilp);
 
@@ -302,21 +272,20 @@ static void ril_file_io_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_read_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	int sw1 = 0, sw2 = 0, response_len = 0;
 	guchar *response = NULL;
 
-	DBG("");
-
 	if (message->error == RIL_E_SUCCESS) {
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("RILD reply failure: %s", ril_error_to_string(message->error));
 		goto error;
 	}
 
 	if ((response = (guchar *)
-		ril_util_parse_sim_io_rsp(message,
+		ril_util_parse_sim_io_rsp(sd->ril,
+						message,
 						&sw1,
 						&sw2,
 						&response_len)) == NULL) {
@@ -341,18 +310,14 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
-	int ret;
+	int request = RIL_REQUEST_SIM_IO;
+	guint ret;
+	cbd->user = sd;
 
-	DBG("fileid: %s (%x) path: %s", sim_fileid_to_string(fileid),
-		fileid, path);
-
-        /* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
-			CMD_READ_BINARY,
-			fileid);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril,
+				"(cmd=0x%.2X,efid=0x%.4X,",
+				CMD_READ_BINARY,
+				fileid);
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_BINARY);
@@ -368,24 +333,19 @@ static void ril_sim_read_binary(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, sd->app_id);    /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
-				RIL_REQUEST_SIM_IO,
+				request,
 				rilp.data,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
 
-	/* TODO: make conditional */
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			print_buf,
-			(start >> 8),
-			(start & 0xff),
-			length,
-			NULL,
-			NULL,
-			sd->app_id);
-
-	ril_close_request;
-	ril_print_request(ret, RIL_REQUEST_SIM_IO);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril,
+				"%s%d,%d,%d,(null),pin2=(null),aid=%s)",
+				print_buf,
+				(start >> 8),
+				(start & 0xff),
+				length,
+				sd->app_id);
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -403,19 +363,18 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
-	int ret;
-
-        /* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%scmd=0x%.2X,efid=0x%.4X,",
-			print_buf,
-			CMD_GET_RESPONSE,
-			fileid);
-	/* TODO: make conditional */
+	int request = RIL_REQUEST_SIM_IO;
+	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, CMD_READ_RECORD);
 	parcel_w_int32(&rilp, fileid);
+
+	g_ril_append_print_buf(sd->ril,
+				"(cmd=0x%.2X,efid=0x%.4X,",
+				CMD_GET_RESPONSE,
+				fileid);
 
 	set_path(sd, &rilp, fileid, path, path_len);
 
@@ -427,23 +386,19 @@ static void ril_sim_read_record(struct ofono_sim *sim, int fileid,
 	parcel_w_string(&rilp, sd->app_id); /* AID (Application ID) */
 
 	ret = g_ril_send(sd->ril,
-				RIL_REQUEST_SIM_IO,
+				request,
 				rilp.data,
 				rilp.size,
 				ril_file_io_cb, cbd, g_free);
 
-	/* TODO: make conditional */
-	ril_append_print_buf("%s%d,%d,%d,%s,pin2=%s,aid=%s",
-			print_buf,
-			record,
-			4,
-			length,
-			NULL,
-			NULL,
-			sd->app_id);
-	ril_close_request;
-	ril_print_request(ret, RIL_REQUEST_SIM_IO);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril,
+				"%s%d,%d,%d,(null),pin2=(null),aid=%s)",
+				print_buf,
+				record,
+				4,
+				length,
+				sd->app_id);
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -457,6 +412,7 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct cb_data *cbd = user_data;
 	ofono_sim_imsi_cb_t cb = cbd->cb;
+	struct sim_data *sd = cbd->user;
 	struct ofono_error error;
 	struct parcel rilp;
 	gchar *imsi;
@@ -465,7 +421,6 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
 		DBG("GET IMSI reply - OK");
 		decode_ril_error(&error, "OK");
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
 		decode_ril_error(&error, "FAIL");
 		cb(&error, NULL, cbd->data);
 		return;
@@ -478,20 +433,8 @@ static void ril_imsi_cb(struct ril_msg *message, gpointer user_data)
         /* FIXME: g_assert(message->buf_len <= 19); */
 	imsi = parcel_r_string(&rilp);
 
-	/* TODO: make conditional */
-	ril_append_print_buf("[%04d]< %s",
-			message->serial_no,
-			ril_request_id_to_string(message->req));
-
-	ril_start_response;
-
-	ril_append_print_buf("%s%s",
-			print_buf,
-			imsi);
-
-	ril_close_response;
-	ril_print_response;
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril, "{%s}", imsi);
+	g_ril_print_response(sd->ril, message);
 
 	cb(&error, imsi, cbd->data);
 	g_free(imsi);
@@ -503,23 +446,19 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct cb_data *cbd = cb_data_new(cb, data);
 	struct parcel rilp;
-	int ret;
-
-	DBG("");
+	int request = RIL_REQUEST_GET_IMSI;
+	guint ret;
+	cbd->user = sd;
 
 	parcel_init(&rilp);
 	parcel_w_int32(&rilp, 1);            /* Number of params */
 	parcel_w_string(&rilp, sd->app_id);  /* AID (Application ID) */
 
-	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_IMSI,
+	ret = g_ril_send(sd->ril, request,
 				rilp.data, rilp.size, ril_imsi_cb, cbd, g_free);
 
-	/* TODO: make conditional */
-	ril_start_request;
-	ril_append_print_buf("%s%s", print_buf, sd->app_id);
-	ril_close_request;
-	ril_print_request(ret, RIL_REQUEST_GET_IMSI);
-	/* TODO: make conditional */
+	g_ril_append_print_buf(sd->ril, "(%s)", sd->app_id);
+	g_ril_print_request(sd->ril, ret, request);
 
 	parcel_free(&rilp);
 
@@ -535,9 +474,7 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct sim_data *sd = ofono_sim_get_data(sim);
 	struct sim_app app;
 
-	DBG("");
-
-	if (ril_util_parse_sim_status(message, &app)) {
+	if (ril_util_parse_sim_status(sd->ril, message, &app)) {
 		if (app.app_id)
 			sd->app_id = app.app_id;
 
@@ -553,15 +490,13 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 static int send_get_sim_status(struct ofono_sim *sim)
 {
 	struct sim_data *sd = ofono_sim_get_data(sim);
-	int ret;
+	int request = RIL_REQUEST_GET_SIM_STATUS;
+	guint ret;
 
-	ret = g_ril_send(sd->ril, RIL_REQUEST_GET_SIM_STATUS,
+	ret = g_ril_send(sd->ril, request,
 				NULL, 0, sim_status_cb, sim, NULL);
 
-	/* TODO: make conditional */
-	ril_clear_print_buf;
-	ril_print_request(ret, RIL_REQUEST_GET_SIM_STATUS);
-	/* TODO: make conditional */
+	g_ril_print_request_no_args(sd->ril, ret, request);
 
 	return ret;
 }
@@ -581,8 +516,6 @@ static int ril_sim_probe(struct ofono_sim *sim, unsigned int vendor,
 {
 	GRil *ril = data;
 	struct sim_data *sd;
-
-	DBG("");
 
 	sd = g_new0(struct sim_data, 1);
 	sd->ril = g_ril_clone(ril);

@@ -40,6 +40,11 @@
 #include "ringbuffer.h"
 #include "gril.h"
 
+#define RIL_TRACE(ril, fmt, arg...) do {	\
+	if (ril->trace == TRUE)		        \
+		ofono_debug(fmt, ## arg); 	\
+} while (0)
+
 #define COMMAND_FLAG_EXPECT_PDU			0x1
 #define COMMAND_FLAG_EXPECT_SHORT_PROMPT	0x2
 
@@ -88,6 +93,8 @@ struct ril_s {
 	gboolean suspended;			/* Are we suspended? */
 	GRilDebugFunc debugf;			/* debugging output function */
 	gpointer debug_data;			/* Data to pass to debug func */
+	gboolean debug;
+	gboolean trace;
 	GSList *response_lines;			/* char * lines of the response */
 	gint timeout_source;
 	gboolean destroyed;			/* Re-entrancy guard */
@@ -230,7 +237,8 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 	if (r == NULL)
 		return 0;
 
-        DBG("req: %s, id: %d, data_len: %d",
+
+	DBG("req: %s, id: %d, data_len: %d",
 		ril_request_id_to_string(req), id, data_len);
 
         /* RIL request: 8 byte header + data */
@@ -335,19 +343,18 @@ static void handle_response(struct ril_s *p, struct ril_msg *message)
 	for (i = 0; i < count; i++) {
 		req = g_queue_peek_nth(p->command_queue, i);
 
-		/* TODO: make conditional
-		 * DBG("comparing req->id: %d to message->serial_no: %d",
-		 *	req->id, message->serial_no);
-		 */
+		DBG("comparing req->id: %d to message->serial_no: %d",
+			req->id, message->serial_no);
 
 		if (req->id == message->serial_no) {
 			found = TRUE;
 			message->req = req->req;
 
-			DBG("RIL Reply: %s serial-no: %d errno: %s",
-				ril_request_id_to_string(message->req),
-				message->serial_no,
-				ril_error_to_string(message->error));
+			if (message->error != RIL_E_SUCCESS)
+				RIL_TRACE(p, "[%04d]< %s failed %s",
+						message->serial_no,
+						ril_request_id_to_string(message->req),
+						ril_error_to_string(message->error));
 
 			req = g_queue_pop_nth(p->command_queue, i);
 			if (req->callback)
@@ -390,6 +397,7 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 	gpointer key, value;
 	GList *list_item;
 	struct ril_notify_node *node;
+	gboolean found = FALSE;
 
 	if (p->notify_list == NULL)
 		return;
@@ -406,30 +414,24 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 		req_key = *((int *)key);
 		notify = value;
 
-                /*
-		 * TODO: add #ifdef...
-		 * DBG("checking req_key: %d to req: %d", req_key, message->req);
-		 */
-
 		if (req_key != message->req)
 			continue;
 
-		list_item = notify->nodes;
+		list_item = (GList *) notify->nodes;
 
 		while (list_item != NULL) {
 			node = list_item->data;
 
-			/*
-			 * TODO: add #ifdef...
-			 * DBG("about to callback: notify: %x, node: %x, notify->nodes: %x, callback: %x",
-			 *	notify, node, notify->nodes, node->callback);
-			 */
-
 			node->callback(message, node->user_data);
-
-			list_item = g_slist_next(list_item);
+			found = TRUE;
+			list_item = (GList *) g_slist_next(list_item);
 		}
 	}
+
+	/* Only log events not being listended for... */
+	if (!found)
+		DBG("RIL Event: %s\n",
+			ril_unsol_request_to_string(message->req));
 
 	p->in_notify = FALSE;
 }
@@ -497,9 +499,6 @@ static void dispatch(struct ril_s *p, struct ril_msg *message)
 	}
 
 	if (message->unsolicited == TRUE) {
-		DBG("RIL Event: %s\n",
-			ril_unsol_request_to_string(message->req));
-
 		handle_unsol_req(p, message);
 	} else {
 		handle_response(p, message);
@@ -567,18 +566,13 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 	p->in_read_handler = TRUE;
 
-	/*
-	 * TODO: make conditional
-	 *	DBG("len: %d, wrap: %d", len, wrap);
-	 */
+	DBG("len: %d, wrap: %d", len, wrap);
+
 	while (p->suspended == FALSE && (p->read_so_far < len)) {
 		gsize rbytes = MIN(len - p->read_so_far, wrap - p->read_so_far);
 
 		if (rbytes < 4) {
-			/*
-			 * TODO: make conditional
-			 * DBG("Not enough bytes for header length: len: %d", len);
-			 */
+			DBG("Not enough bytes for header length: len: %d", len);
 			return;
 		}
 
@@ -592,10 +586,7 @@ static void new_bytes(struct ring_buffer *rbuf, gpointer user_data)
 
 		/* wait for the rest of the record... */
 		if (message == NULL) {
-
-			/* TODO: make conditional
-			 * DBG("Not enough bytes for fixed record");
-			 */
+			DBG("Not enough bytes for fixed record");
 			break;
 		}
 
@@ -642,10 +633,7 @@ static gboolean can_write_data(gpointer data)
 
 	len = req->data_len;
 
-	/*
-	 * TODO: make conditional:
-	 * DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
-	 */
+	DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
@@ -680,11 +668,6 @@ static gboolean can_write_data(gpointer data)
 	bytes_written = g_ril_io_write(ril->io,
 					req->data + ril->req_bytes_written,
 					towrite);
-
-	/*
-	 * TODO: make conditional
-	 * DBG("bytes_written: %d", bytes_written);
-	 */
 
 	if (bytes_written == 0)
 		return FALSE;
@@ -799,6 +782,7 @@ static struct ril_s *create_ril()
 	ril->next_gid = 0;
 	ril->debugf = NULL;
 	ril->req_bytes_written = 0;
+	ril->trace = FALSE;
 
 
 	/* TODO: this should have retry logic... */
@@ -919,8 +903,6 @@ static guint ril_register(struct ril_s *ril, guint group,
 	node->user_data = user_data;
 
 	notify->nodes = g_slist_prepend(notify->nodes, node);
-	DBG("after pre-pend; notify: %x, node %x, notify->nodes: %x, callback: %x",
-		notify, node, notify->nodes, node->callback);
 
 	if ((req == RIL_UNSOL_RIL_CONNECTED) && (ril->connected == TRUE)) {
 		/* fire the callback in a timer, as it won't ever fire */
@@ -1112,7 +1094,25 @@ void g_ril_unref(GRil *ril)
 	g_free(ril);
 }
 
-gboolean g_ril_set_debug(GRil *ril,
+gboolean g_ril_get_trace(GRil *ril)
+{
+
+	if (ril == NULL || ril->parent == NULL)
+		return FALSE;
+
+	return ril->parent->trace;
+}
+
+gboolean g_ril_set_trace(GRil *ril, gboolean trace)
+{
+
+	if (ril == NULL || ril->parent == NULL)
+		return FALSE;
+
+	return (ril->parent->trace = trace);
+}
+
+gboolean g_ril_set_debugf(GRil *ril,
 			GRilDebugFunc func, gpointer user_data)
 {
 
