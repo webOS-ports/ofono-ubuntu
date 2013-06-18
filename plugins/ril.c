@@ -58,16 +58,19 @@
 #include "drivers/rilmodem/rilmodem.h"
 
 #define MAX_POWER_ON_RETRIES 5
+#define MAX_SIM_STATUS_RETRIES 15
 
 struct ril_data {
 	GRil *modem;
 	int power_on_retries;
-
+	int sim_status_retries;
+	ofono_bool_t connected;
 	ofono_bool_t have_sim;
 	ofono_bool_t online;
 	ofono_bool_t reported;
 };
 
+static int send_get_sim_status(struct ofono_modem *modem);
 static gboolean power_on(gpointer user_data);
 
 static void ril_debug(const char *str, void *user_data)
@@ -84,8 +87,9 @@ static void power_cb(struct ril_msg *message, gpointer user_data)
 
 	if (message->error != RIL_E_SUCCESS) {
 		ril->power_on_retries++;
-		ofono_warn("Radio Power On request failed: %d; retries: %d",
-				message->error, ril->power_on_retries);
+		ofono_warn("Radio Power On request failed: %s; retries: %d",
+				ril_error_to_string(message->error),
+				ril->power_on_retries);
 
 		if (ril->power_on_retries < MAX_POWER_ON_RETRIES)
 			g_timeout_add_seconds(1, power_on, modem);
@@ -128,16 +132,38 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_modem *modem = user_data;
 	struct ril_data *ril = ofono_modem_get_data(modem);
 
-	/* Returns TRUE if cardstate == PRESENT */
-	if (ril_util_parse_sim_status(ril->modem, message, NULL)) {
-		DBG("have_sim = TRUE; powering on modem.");
+	DBG("");
 
-		/* TODO: check PinState=DISABLED, for now just
-		 * set state to valid... */
-		ril->have_sim = TRUE;
-		power_on(modem);
+	/*
+	 * ril.h claims this should NEVER fail!
+	 * However this isn't quite true.  So,
+	 * on anything other than SUCCESS, we
+	 * log an error, and schedule another
+	 * GET_SIM_STATUS request.
+	 */
+
+	if (message->error != RIL_E_SUCCESS) {
+		ril->sim_status_retries++;
+
+		ofono_error("GET_SIM_STATUS reques failed: %d; retries: %d",
+				message->error, ril->sim_status_retries);
+
+		if (ril->sim_status_retries < MAX_SIM_STATUS_RETRIES)
+			g_timeout_add_seconds(2, (GSourceFunc) send_get_sim_status, (gpointer) modem);
+		else
+			ofono_error("Max retries for GET_SIM_STATUS exceeded!");
+	} else {
+		/* Returns TRUE if cardstate == PRESENT */
+		if (ril_util_parse_sim_status(ril->modem, message, NULL)) {
+			DBG("have_sim = TRUE; powering on modem.");
+
+			/* TODO: check PinState=DISABLED, for now just
+			 * set state to valid... */
+			ril->have_sim = TRUE;
+			power_on(modem);
+		} else
+			ofono_warn("No SIM card present.");
 	}
-
 	/* TODO: handle emergency calls if SIM !present or locked */
 }
 
@@ -235,6 +261,21 @@ static void ril_post_online(struct ofono_modem *modem)
 	ofono_netreg_create(modem, 0, "rilmodem", ril->modem);
 }
 
+static void ril_connected(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_modem *modem = (struct ofono_modem *) user_data;
+	struct ril_data *ril = ofono_modem_get_data(modem);
+
+	/* TODO: make conditional */
+        ofono_debug("[UNSOL]< %s", ril_unsol_request_to_string(message->req));
+	/* TODO: make conditional */
+
+	/* TODO: need a disconnect function to restart things! */
+	ril->connected = TRUE;
+
+	send_get_sim_status(modem);
+}
+
 static int ril_enable(struct ofono_modem *modem)
 {
 	struct ril_data *ril = ofono_modem_get_data(modem);
@@ -264,7 +305,8 @@ static int ril_enable(struct ofono_modem *modem)
 		g_ril_set_debugf(ril->modem, ril_debug, "Device: ");
 	}
 
-	send_get_sim_status(modem);
+	g_ril_register(ril->modem, RIL_UNSOL_RIL_CONNECTED,
+			ril_connected, modem);
 
         return -EINPROGRESS;
 }
