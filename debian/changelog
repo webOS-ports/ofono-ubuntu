@@ -1,3 +1,11 @@
+ofono (1.12phablet5) saucy; urgency=low
+
+  * plugins/ril.c: Delay modem initialization until RIL_CONNECTED
+    is received, and add GET_SIM_STATUS retry logic (LP: #1187031).
+  * [ril/rilmodem] Add high level RIL message tracing.
+
+ -- Tony Espy <espy@canonical.com>  Mon, 17 Jun 2013 13:36:05 -0400
+
 ofono (1.12phablet4) saucy; urgency=low
 
   * Building for saucy.

@@ -89,6 +89,7 @@ struct ril_s {
 	GRilDisconnectFunc user_disconnect;	/* user disconnect func */
 	gpointer user_disconnect_data;		/* user disconnect data */
 	guint read_so_far;			/* Number of bytes processed */
+	gboolean connected;                     /* RIL_UNSOL_CONNECTED rvcd */
 	gboolean suspended;			/* Are we suspended? */
 	GRilDebugFunc debugf;			/* debugging output function */
 	gpointer debug_data;			/* Data to pass to debug func */
@@ -304,8 +305,9 @@ static void ril_cleanup(struct ril_s *p)
 	g_slist_free(p->response_lines);
 	p->response_lines = NULL;
 
-	/* Cleanup registered notifications */
+	p->connected = FALSE;
 
+	/* Cleanup registered notifications */
 	if (p->notify_list)
 		g_hash_table_destroy(p->notify_list);
 
@@ -403,6 +405,10 @@ static void handle_unsol_req(struct ril_s *p, struct ril_msg *message)
 	p->in_notify = TRUE;
 
 	g_hash_table_iter_init(&iter, p->notify_list);
+
+	if (message->req == RIL_UNSOL_RIL_CONNECTED) {
+		p->connected = TRUE;
+	}
 
 	while (g_hash_table_iter_next(&iter, &key, &value)) {
 		req_key = *((int *)key);
@@ -778,6 +784,9 @@ static struct ril_s *create_ril()
 	ril->req_bytes_written = 0;
 	ril->trace = FALSE;
 
+
+	/* TODO: this should have retry logic... */
+
 	sk = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sk < 0) {
 		ofono_error("create_ril: can't create unix socket: %s (%d)\n",
@@ -868,6 +877,7 @@ static guint ril_register(struct ril_s *ril, guint group,
 {
 	struct ril_notify *notify;
 	struct ril_notify_node *node;
+	struct ril_msg message;
 
 	if (ril->notify_list == NULL)
 		return 0;
@@ -893,6 +903,19 @@ static guint ril_register(struct ril_s *ril, guint group,
 	node->user_data = user_data;
 
 	notify->nodes = g_slist_prepend(notify->nodes, node);
+
+	if ((req == RIL_UNSOL_RIL_CONNECTED) && (ril->connected == TRUE)) {
+		/* fire the callback in a timer, as it won't ever fire */
+		DBG("CONNECTED already received... ");
+
+		message.req = RIL_UNSOL_RIL_CONNECTED;
+		message.unsolicited = TRUE;
+		message.buf_len = 0;
+		message.buf = NULL;
+
+		func(&message, user_data);
+	}
+
 
 	return node->id;
 }
