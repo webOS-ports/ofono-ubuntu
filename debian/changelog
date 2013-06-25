@@ -1,8 +1,12 @@
-ofono (1.12phablet6) saucy; urgency=low
+ofono (1.12phablet7) saucy; urgency=low
 
   * gril/gril.c: Exit on RILD socket failures.
 
- -- Tony Espy <espy@canonical.com>  Tue, 25 Jun 2013 12:14:13 -0400
+ -- Tony Espy <espy@canonical.com>  Tue, 25 Jun 2013 15:14:13 -0400
+
+  * [ril/rilmodem] Add real calls for revision and IMEI probe
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Tue, 25 Jun 2013 02:46:40 -0300
 
 ofono (1.12phablet5) saucy; urgency=low
 
