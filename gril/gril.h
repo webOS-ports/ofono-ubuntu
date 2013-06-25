@@ -63,7 +63,7 @@ typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
  * name it is called in.
  */
 #define G_RIL_TRACE(gril, fmt, arg...) do {	\
-	if (g_ril_get_trace(gril))		\
+	if (gril && g_ril_get_trace(gril))	\
 		ofono_debug(fmt, ## arg); 	\
 } while (0)
 
@@ -87,7 +87,7 @@ static char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
 			ril_request_id_to_string(message->req))
 
 #define g_ril_append_print_buf(gril, x...)  do {    \
-	if (g_ril_get_trace(gril))                  \
+	if (gril && g_ril_get_trace(gril))          \
 		sprintf(print_buf, x);              \
 } while (0)
 

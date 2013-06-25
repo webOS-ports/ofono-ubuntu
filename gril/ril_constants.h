@@ -82,6 +82,11 @@
 #define RIL_DATA_PROFILE_TETHERED 1
 #define RIL_DATA_PROFILE_OEM_BASE 1000    /* Start of OEM-specific profiles */
 
+#define RIL_AUTH_NONE 0
+#define RIL_AUTH_PAP 1
+#define RIL_AUTH_CHAP 2
+#define RIL_AUTH_BOTH 3
+
 /* SIM card states */
 #define RIL_CARDSTATE_ABSENT 0
 #define RIL_CARDSTATE_PRESENT 1

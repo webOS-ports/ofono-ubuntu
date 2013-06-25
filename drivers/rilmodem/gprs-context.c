@@ -39,6 +39,7 @@
 #include <ofono/types.h>
 
 #include "gril.h"
+#include "grilmessages.h"
 #include "grilutil.h"
 
 #include "rilmodem.h"
@@ -130,23 +131,8 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct ofono_error error;
 	struct parcel rilp;
-	int status, retry_time, cid, active, num, version;
-	char *dnses = NULL, *ifname = NULL;
-	char *raw_ip_addrs = NULL, *raw_gws = NULL, *type = NULL;
-	char **dns_addresses = NULL, **gateways = NULL;
-	char **ip_addrs = NULL, **split_ip_addr = NULL;
-
-	/* TODO:
-	 * Cleanup duplicate code between this function and
-	 * ril_util_parse_data_call_list().
-	 */
-
-	/* valid size: 36 (34 if HCRADIO defined) */
-	if (message->buf_len < 36) {
-		DBG("Parcel is less then minimum DataCallResponseV6 size!");
-		decode_ril_error(&error, "FAIL");
-		goto error;
-	}
+	struct setup_data_call_reply reply;
+	char **split_ip_addr = NULL;
 
 	if (message->error != RIL_E_SUCCESS) {
 		DBG("Reply failure: %s", ril_error_to_string(message->error));
@@ -157,59 +143,38 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-	/*
-	 * ril.h documents the reply to a RIL_REQUEST_SETUP_DATA_CALL
-	 * as being a RIL_Data_Call_Response_v6 struct, however in
-	 * reality, the response actually includes the version of the
-	 * struct, followed by an array of calls, so the array size
-	 * also has to be read after the version.
-	 *
-	 * TODO: What if there's more than 1 call in the list??
-	 */
-	version = parcel_r_int32(&rilp);
-	num = parcel_r_int32(&rilp);
+	if (g_ril_parse_data_call_reply(gcd->ril,
+					&reply,
+					&rilp,
+					&error) == FALSE)
+		goto error;
 
-	status = parcel_r_int32(&rilp);
-	retry_time = parcel_r_int32(&rilp);
-	cid = parcel_r_int32(&rilp);
-	active = parcel_r_int32(&rilp);
-
-	type = parcel_r_string(&rilp);
-	ifname = parcel_r_string(&rilp);
-	raw_ip_addrs = parcel_r_string(&rilp);
-	dnses = parcel_r_string(&rilp);
-	raw_gws = parcel_r_string(&rilp);
-
-	g_ril_append_print_buf(gcd->ril,
-				"{version=%d,num=%d [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]}",
-				version,
-				num,
-				status,
-				retry_time,
-				cid,
-				active,
-				type,
-				ifname,
-				raw_ip_addrs,
-				dnses,
-				raw_gws);
 	g_ril_print_response(gcd->ril, message);
 
-	if (status != 0) {
-		DBG("Reply failure; status %d", status);
+	if (reply.status != 0) {
+		DBG("Reply failure; status %d", reply.status);
 		gcd->state = STATE_IDLE;
 		goto error;
 	}
 
-	gcd->state = STATE_ACTIVE;
-	gcd->active_rild_cid = cid;
-
-	ofono_gprs_context_set_interface(gc, ifname);
-
 	/*
-	 * TODO: re-factor the following code into a
-	 * ril_util function that can be unit-tested.
+	 * TODO: consier moving this into parse_data_reply
+	 *
+	 * Note - the address may optionally include a prefix size
+	 * ( Eg. "/30" ).  As this confuses NetworkManager, we
+	 * explicitly strip any prefix after calculating the netmask.
 	 */
+	split_ip_addr = g_strsplit(reply.ip_addrs[0], "/", 2);
+	if (split_ip_addr[0] == NULL) {
+		DBG("Invalid IP address field returned: %s", reply.ip_addrs[0]);
+		decode_ril_error(&error, "FAIL");
+		goto error;
+	}
+
+	gcd->state = STATE_ACTIVE;
+	gcd->active_rild_cid = reply.cid;
+
+	ofono_gprs_context_set_interface(gc, reply.ifname);
 
 	/* TODO:
 	 * RILD can return multiple addresses; oFono only supports
@@ -218,65 +183,25 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	 * just specify the end-points of the point-to-point
 	 * connection, in which case this code will need to
 	 * changed to handle such a device.
-	 *
-	 * For now split into a maximum of three, and only use
-	 * the first address for the remaining operations.
 	 */
-	ip_addrs = g_strsplit(raw_ip_addrs, " ", 3);
-	if (ip_addrs[0] == NULL) {
-		DBG("No IP address specified: %s", raw_ip_addrs);
-		decode_ril_error(&error, "FAIL");
-		goto error;
-	}
-
 	ofono_gprs_context_set_ipv4_netmask(gc,
-			ril_util_get_netmask(ip_addrs[0]));
-
-	/*
-	 * Note - the address may optionally include a prefix size
-	 * ( Eg. "/30" ).  As this confuses NetworkManager, we
-	 * explicitly strip any prefix after calculating the netmask.
-	 */
-	split_ip_addr = g_strsplit(ip_addrs[0], "/", 2);
-	if (split_ip_addr[0] == NULL) {
-		DBG("Invalid IP address field returned: %s", raw_ip_addrs);
-		decode_ril_error(&error, "FAIL");
-		goto error;
-	}
+			ril_util_get_netmask(reply.ip_addrs[0]));
 
 	ofono_gprs_context_set_ipv4_address(gc, split_ip_addr[0], TRUE);
+	ofono_gprs_context_set_ipv4_gateway(gc, reply.gateways[0]);
 
-	/*
-	 * RILD can return multiple addresses; oFono only supports
-	 * setting a single IPv4 gateway.
-	 */
-	gateways = g_strsplit(raw_gws, " ", 3);
-	if (gateways[0] == NULL) {
-		DBG("Invalid gateways field returned: %s", raw_gws);
-		decode_ril_error(&error, "FAIL");
-		goto error;
-	}
-
-	ofono_gprs_context_set_ipv4_gateway(gc, gateways[0]);
-
-	/* Split DNS addresses */
-	dns_addresses = g_strsplit(dnses, " ", 3);
 	ofono_gprs_context_set_ipv4_dns_servers(gc,
-						(const char **) dns_addresses);
+						(const char **) reply.dns_addresses);
 
 	decode_ril_error(&error, "OK");
 
 error:
-	g_strfreev(dns_addresses);
-	g_strfreev(ip_addrs);
+	g_strfreev(reply.dns_addresses);
+	g_strfreev(reply.ip_addrs);
+	g_strfreev(reply.gateways);
 	g_strfreev(split_ip_addr);
-	g_strfreev(gateways);
 
-	g_free(type);
-	g_free(ifname);
-	g_free(raw_ip_addrs);
-	g_free(dnses);
-	g_free(raw_gws);
+	g_free(reply.ifname);
 
 	cb(&error, cbd->data);
 }
@@ -287,9 +212,9 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 {
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct cb_data *cbd = cb_data_new(cb, data);
+	struct setup_data_call_req request_params;
 	struct parcel rilp;
-	gchar *protocol = PROTO_IP;
-	gchar tech[3];
+	struct ofono_error error;
 	int request = RIL_REQUEST_SETUP_DATA_CALL;
 	int ret;
 
@@ -300,56 +225,22 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	memcpy(gcd->username, ctx->username, sizeof(ctx->username));
 	memcpy(gcd->password, ctx->password, sizeof(ctx->password));
 
+	/* Move to parcel.cpp */
 	parcel_init(&rilp);
-	parcel_w_int32(&rilp, SETUP_DATA_CALL_PARAMS);
 
-        /* RadioTech: hardcoded to HSPA for now... */
-	sprintf((char *) tech, "%d", (int) RADIO_TECH_HSPA);
-	DBG("setting tech to: %s", tech);
-	parcel_w_string(&rilp, (char *) tech);
+	request_params.tech = RADIO_TECH_HSPA;
+	request_params.data_profile = RIL_DATA_PROFILE_DEFAULT;
+	request_params.apn = ctx->apn;
+	request_params.username = ctx->username;
+	request_params.password = ctx->password;
+	request_params.auth_type = RIL_AUTH_BOTH;
+	request_params.protocol = ctx->proto;
 
-        /*
-	 * TODO ( OEM/Tethering ): DataProfile:
-	 *
-	 * Other options are TETHERING (1) or OEM_BASE (1000).
-	 */
-	parcel_w_string(&rilp, DATA_PROFILE_DEFAULT);
-
-	/* APN */
-	parcel_w_string(&rilp, (char *) (ctx->apn));
-
-	if (ctx->username && strlen(ctx->username)) {
-		parcel_w_string(&rilp, (char *) (ctx->username));
-	} else {
-		parcel_w_string(&rilp, NULL);
+	if (g_ril_setup_data_call(gcd->ril, &request_params,
+					&rilp, &error)) {
+		ofono_error("Couldn't build SETUP_DATA_CALL request.");
+		goto error;
 	}
-
-	if (ctx->password && strlen(ctx->password)) {
-		parcel_w_string(&rilp, (char *) (ctx->password));
-	} else {
-		parcel_w_string(&rilp, NULL);
-	}
-
-	/*
-	 * TODO: review with operators...
-         * Auth type: PAP/CHAP may be performed
-	 */
-	parcel_w_string(&rilp, CHAP_PAP_OK);
-
-	switch (ctx->proto) {
-	case OFONO_GPRS_PROTO_IPV6:
-		protocol = PROTO_IPV6;
-		break;
-	case OFONO_GPRS_PROTO_IPV4V6:
-		protocol = PROTO_IPV4V6;
-		break;
-	case OFONO_GPRS_PROTO_IP:
-		break;
-	default:
-		DBG("Invalid protocol: %d", ctx->proto);
-	}
-
-	parcel_w_string(&rilp, protocol);
 
 	ret = g_ril_send(gcd->ril,
 				request,
@@ -357,18 +248,12 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 				rilp.size,
 				ril_setup_data_call_cb, cbd, g_free);
 
-	g_ril_append_print_buf(gcd->ril,
-				"(%s,%s,%s,%s,%s,%s,%s)",
-				tech,
-				DATA_PROFILE_DEFAULT,
-				ctx->apn,
-				ctx->username,
-				ctx->password,
-				CHAP_PAP_OK,
-				protocol);
+	/* NOTE - we could make the following function part of g_ril_send? */
 	g_ril_print_request(gcd->ril, ret, request);
 
 	parcel_free(&rilp);
+
+error:
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_SETUP_DATA_CALL failed.");
 
