@@ -4,6 +4,8 @@ ofono (1.12phablet7) saucy; urgency=low
 
  -- Tony Espy <espy@canonical.com>  Tue, 25 Jun 2013 15:14:13 -0400
 
+ofono (1.12phablet6) saucy; urgency=low
+
   * [ril/rilmodem] Add real calls for revision and IMEI probe
 
  -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Tue, 25 Jun 2013 02:46:40 -0300
