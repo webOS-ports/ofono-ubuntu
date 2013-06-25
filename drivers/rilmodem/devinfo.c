@@ -97,8 +97,7 @@ static void query_revision_cb(struct ril_msg *message, gpointer user_data)
 
 	cb(&error, revision, cbd->data);
 
-	if (revision)
-		g_free(revision);
+	g_free(revision);
 }
 
 static void ril_query_revision(struct ofono_devinfo *info,
@@ -113,7 +112,7 @@ static void ril_query_revision(struct ofono_devinfo *info,
 	ret = g_ril_send(ril, request, NULL, 0,
 					query_revision_cb, cbd, g_free);
 
-	g_ril_print_request(ril, ret, request);
+	g_ril_print_request_no_args(ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
@@ -143,8 +142,7 @@ static void query_serial_cb(struct ril_msg *message, gpointer user_data)
 
 	cb(&error, imei, cbd->data);
 
-	if (imei)
-		g_free(imei);
+	g_free(imei);
 }
 
 static void ril_query_serial(struct ofono_devinfo *info,
@@ -161,7 +159,7 @@ static void ril_query_serial(struct ofono_devinfo *info,
 	ret = g_ril_send(ril, request, NULL, 0,
 					query_serial_cb, cbd, g_free);
 
-	g_ril_print_request(ril, ret, request);
+	g_ril_print_request_no_args(ril, ret, request);
 
 	if (ret <= 0) {
 		g_free(cbd);
