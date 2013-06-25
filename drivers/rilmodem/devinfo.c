@@ -96,7 +96,9 @@ static void query_revision_cb(struct ril_msg *message, gpointer user_data)
 	revision = parcel_r_string(&rilp);
 
 	cb(&error, revision, cbd->data);
-	g_free(revision);
+
+	if (revision)
+		g_free(revision);
 }
 
 static void ril_query_revision(struct ofono_devinfo *info,
@@ -140,7 +142,9 @@ static void query_serial_cb(struct ril_msg *message, gpointer user_data)
 	imei = parcel_r_string(&rilp);
 
 	cb(&error, imei, cbd->data);
-	g_free(imei);
+
+	if (imei)
+		g_free(imei);
 }
 
 static void ril_query_serial(struct ofono_devinfo *info,
