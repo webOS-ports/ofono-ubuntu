@@ -67,8 +67,6 @@ struct gprs_context_data {
 	GRil *ril;
 	unsigned int active_ctx_cid;
 	unsigned int active_rild_cid;
-	char username[OFONO_GPRS_MAX_USERNAME_LENGTH + 1];
-	char password[OFONO_GPRS_MAX_PASSWORD_LENGTH + 1];
 	enum state state;
 };
 
@@ -132,6 +130,7 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_error error;
 	struct parcel rilp;
 	struct setup_data_call_reply reply;
+	gboolean valid_reply = FALSE;
 	char **split_ip_addr = NULL;
 
 	if (message->error != RIL_E_SUCCESS) {
@@ -141,15 +140,23 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
+	/* TODO: Note, the parse_routines could take 'message'
+	 * as a direct parameter instead of rilp.  This would
+	 * simplify the calling routines even more, as the
+	 * the ril_util_init_parcel() could move into the
+	 * the parse* functions, as well as the g_ril_print_response
+	 * calls...
+	 */
 	ril_util_init_parcel(message, &rilp);
 
-	if (g_ril_parse_data_call_reply(gcd->ril,
-					&reply,
-					&rilp,
-					&error) == FALSE)
-		goto error;
-
+	valid_reply = g_ril_parse_data_call_reply(gcd->ril,
+							&reply,
+							&rilp,
+							&error);
 	g_ril_print_response(gcd->ril, message);
+
+	if (!valid_reply)
+		goto error;
 
 	if (reply.status != 0) {
 		DBG("Reply failure; status %d", reply.status);
@@ -222,10 +229,6 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	gcd->active_ctx_cid = ctx->cid;
 	gcd->state = STATE_ENABLING;
 
-	memcpy(gcd->username, ctx->username, sizeof(ctx->username));
-	memcpy(gcd->password, ctx->password, sizeof(ctx->password));
-
-	/* Move to parcel.cpp */
 	parcel_init(&rilp);
 
 	request_params.tech = RADIO_TECH_HSPA;
