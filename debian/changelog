@@ -1,4 +1,4 @@
-ofono (1.12phablet6) UNRELEASED; urgency=low
+ofono (1.12phablet6) saucy; urgency=low
 
   * [ril/rilmodem] Add real calls for revision and IMEI probe
 
