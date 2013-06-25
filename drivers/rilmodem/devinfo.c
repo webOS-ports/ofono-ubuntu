@@ -137,8 +137,6 @@ static void query_serial_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-	/* TODO: CDMA might use ESN or MEID instead */
-	parcel_r_int32(&rilp);
 	imei = parcel_r_string(&rilp);
 
 	cb(&error, imei, cbd->data);
@@ -151,7 +149,9 @@ static void ril_query_serial(struct ofono_devinfo *info,
 {
 	struct cb_data *cbd = cb_data_new(cb, data);
 	GRil *ril = ofono_devinfo_get_data(info);
-	int request = RIL_REQUEST_DEVICE_IDENTITY;
+	/* TODO: make it support both RIL_REQUEST_GET_IMEI (deprecated) and
+	 * RIL_REQUEST_DEVICE_IDENTITY depending on the rild version used */
+	int request = RIL_REQUEST_GET_IMEI;
 	int ret;
 
 	ret = g_ril_send(ril, request, NULL, 0,
