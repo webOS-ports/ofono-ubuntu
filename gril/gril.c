@@ -24,6 +24,7 @@
 #include <config.h>
 #endif
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -783,9 +784,7 @@ static struct ril_s *create_ril()
 	ril->debugf = NULL;
 	ril->req_bytes_written = 0;
 	ril->trace = FALSE;
-
-
-	/* TODO: this should have retry logic... */
+	ril->connected = FALSE;
 
 	sk = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sk < 0) {
@@ -838,16 +837,8 @@ static struct ril_s *create_ril()
 	return ril;
 
 error:
-        g_ril_io_unref(ril->io);
-
-	if (ril->command_queue)
-		g_queue_free(ril->command_queue);
-
-	if (ril->notify_list)
-		g_hash_table_destroy(ril->notify_list);
-
-	g_free(ril);
-	return NULL;
+	ofono_error("Exiting...");
+	exit(EXIT_FAILURE);
 }
 
 static struct ril_notify *ril_notify_create(struct ril_s *ril,
