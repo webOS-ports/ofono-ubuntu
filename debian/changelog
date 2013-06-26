@@ -1,6 +1,10 @@
-ofono (1.12phablet7) UNRELEASED; urgency=low
+ofono (1.12phablet7) saucy; urgency=low
 
+  [ Tony Espy ]
   * gril/gril.c: Exit on RILD socket failures.
+
+  [ Petri M. Gerdt <petri.gerdt@jollamobile.com> ]
+  * plugins/nettime.c: Added nettime plugin.
 
  -- Tony Espy <espy@canonical.com>  Tue, 25 Jun 2013 15:14:13 -0400
 
