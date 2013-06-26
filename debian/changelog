@@ -1,4 +1,4 @@
-ofono (1.12phablet7) saucy; urgency=low
+ofono (1.12phablet7) UNRELEASED; urgency=low
 
   * gril/gril.c: Exit on RILD socket failures.
 
