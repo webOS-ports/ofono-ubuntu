@@ -154,7 +154,7 @@ if __name__ == '__main__':
 					path_keyword="path",
 					interface_keyword="interface")
 
-	for member in ["NetworkTimeReceived"]:
+	for member in ["NetworkTimeChanged"]:
 		bus.add_signal_receiver(network_time_changed,
 					bus_name="org.ofono",
 					signal_name = member,
