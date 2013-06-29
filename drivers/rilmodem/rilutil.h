@@ -62,21 +62,48 @@ enum at_util_charset {
 	RIL_UTIL_CHARSET_8859_H =	0x10000,
 };
 
+/* TODO: consider moving these to ril_constants.h */
+enum app_state {
+	APPSTATE_UNKNOWN,
+	APPSTATE_DETECTED,
+	APPSTATE_PIN,
+	APPSTATE_PUK,
+	APPSTATE_SUBSCRIPTION_PERSO,
+	APPSTATE_READY,
+};
+
 struct data_call {
-    int             status;
-    int             retry;
-    int             cid;
-    int             active;
-    char *          type;
-    char *          ifname;
-    char *          addresses;
-    char *          dnses;
-    char *          gateways;
+    int status;
+    int retry;
+    int cid;
+    int active;
+    char *type;
+    char *ifname;
+    char *addresses;
+    char *dnses;
+    char *gateways;
+};
+
+#define MAX_UICC_APPS 16
+
+struct sim_status {
+	guint card_state;
+	guint pin_state;
+	guint gsm_umts_index;
+	guint cdma_index;
+	guint ims_index;
+	guint num_apps;
 };
 
 struct sim_app {
-	char *app_id;
 	guint app_type;
+	guint app_state;
+	guint perso_substate;
+	char *aid_str;
+	char *app_str;
+	guint pin_replaced;
+	guint pin1_state;
+	guint pin2_state;
 };
 
 typedef void (*ril_util_sim_inserted_cb_t)(gboolean present, void *userdata);
@@ -101,13 +128,17 @@ GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message);
 char *ril_util_parse_sim_io_rsp(GRil *gril, struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len);
-gboolean ril_util_parse_sim_status(GRil *gril, struct ril_msg *message, struct sim_app *app);
+gboolean ril_util_parse_sim_status(GRil *gril, struct ril_msg *message,
+					struct sim_status *status,
+					struct sim_app **apps);
 gboolean ril_util_parse_reg(GRil *gril, struct ril_msg *message, int *status,
 				int *lac, int *ci, int *tech, int *max_calls);
 
 gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message);
 
 gint ril_util_get_signal(GRil *gril, struct ril_msg *message);
+
+void ril_free_sim_apps(struct sim_app **apps, guint num_apps);
 
 struct cb_data {
 	void *cb;

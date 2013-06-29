@@ -394,23 +394,16 @@ char *ril_util_parse_sim_io_rsp(GRil *gril,
 
 gboolean ril_util_parse_sim_status(GRil *gril,
 					struct ril_msg *message,
-					struct sim_app *app)
+					struct sim_status *status,
+					struct sim_app **apps)
 {
 	struct parcel rilp;
 	gboolean result = FALSE;
-	char *aid_str = NULL;
-	char *app_str = NULL;
-	int i, card_state, num_apps, pin_state, gsm_umts_index, ims_index;
-	int app_state, app_type, pin_replaced, pin1_state, pin2_state, perso_substate;
+	int i;
 
 	g_ril_append_print_buf(gril, "[%04d]< %s",
 			message->serial_no,
 			ril_request_id_to_string(message->req));
-
-	if (app) {
-		app->app_type = RIL_APPTYPE_UNKNOWN;
-		app->app_id = NULL;
-	}
 
 	ril_util_init_parcel(message, &rilp);
 
@@ -420,24 +413,33 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 	 * This could be a runtime assertion, disconnect, drop/ignore
 	 * the message, ...
 	 *
-	 * Currently if the message is smaller than expected, our parcel
-	 * code happily walks off the end of the buffer and segfaults.
-	 *
 	 * 20 is the min length of RIL_CardStatus_v6 as the AppState
 	 * array can be 0-length.
 	 */
 	if (message->buf_len < 20) {
 		ofono_error("Size of SIM_STATUS reply too small: %d bytes",
 				message->buf_len);
-		goto done;
+		return FALSE;
 	}
 
-	card_state = parcel_r_int32(&rilp);
-	pin_state = parcel_r_int32(&rilp);
-	gsm_umts_index = parcel_r_int32(&rilp);
-	parcel_r_int32(&rilp); /* ignore: cdma_subscription_app_index */
-	ims_index = parcel_r_int32(&rilp);
-	num_apps = parcel_r_int32(&rilp);
+	status->card_state = parcel_r_int32(&rilp);
+
+	/*
+	 * NOTE:
+	 *
+	 * The global pin_status is used for multi-application
+	 * UICC cards.  For example, there are SIM cards that
+	 * can be used in both GSM and CDMA phones.  Instead
+	 * of managed PINs for both applications, a global PIN
+	 * is set instead.  It's not clear at this point if
+	 * such SIM cards are supported by ofono or RILD.
+	 */
+
+	status->pin_state = parcel_r_int32(&rilp);
+	status->gsm_umts_index = parcel_r_int32(&rilp);
+	status->cdma_index = parcel_r_int32(&rilp);
+	status->ims_index = parcel_r_int32(&rilp);
+	status->num_apps = parcel_r_int32(&rilp);
 
 	/* TODO:
 	 * How do we handle long (>80 chars) ril_append_print_buf strings?
@@ -446,60 +448,68 @@ gboolean ril_util_parse_sim_status(GRil *gril,
 	 */
 	g_ril_append_print_buf(gril,
 				"(card_state=%d,universal_pin_state=%d,gsm_umts_index=%d,cdma_index=%d,ims_index=%d, ",
-				card_state,
-				pin_state,
-				gsm_umts_index,
-				-1,
-				ims_index);
+				status->card_state,
+				status->pin_state,
+				status->gsm_umts_index,
+				status->cdma_index,
+				status->ims_index);
 
-	for (i = 0; i < num_apps; i++) {
-		app_type = parcel_r_int32(&rilp);
-		app_state = parcel_r_int32(&rilp);
-		perso_substate = parcel_r_int32(&rilp);
+	if (status->card_state == RIL_CARDSTATE_PRESENT)
+		result = TRUE;
+	else
+		goto done;
+
+	if (status->num_apps > MAX_UICC_APPS) {
+		ofono_error("SIM error; too many apps: %d", status->num_apps);
+		status->num_apps = MAX_UICC_APPS;
+	}
+
+	for (i = 0; i < status->num_apps; i++) {
+		DBG("processing app[%d]", i);
+		apps[i] = g_try_new0(struct sim_app, 1);
+		if (apps[i] == NULL) {
+			ofono_error("Can't allocate app_data");
+			goto error;
+		}
+
+		apps[i]->app_type = parcel_r_int32(&rilp);
+		apps[i]->app_state = parcel_r_int32(&rilp);
+		apps[i]->perso_substate = parcel_r_int32(&rilp);
 
 		/* TODO: we need a way to instruct parcel to skip
 		 * a string, without allocating memory...
 		 */
-		aid_str = parcel_r_string(&rilp); /* application ID (AID) */
-		app_str = parcel_r_string(&rilp); /* application label */
+		apps[i]->aid_str = parcel_r_string(&rilp); /* application ID (AID) */
+		apps[i]->app_str = parcel_r_string(&rilp); /* application label */
 
-		pin_replaced = parcel_r_int32(&rilp);
-		pin1_state = parcel_r_int32(&rilp);
-		pin2_state = parcel_r_int32(&rilp);
+		apps[i]->pin_replaced = parcel_r_int32(&rilp);
+		apps[i]->pin1_state = parcel_r_int32(&rilp);
+		apps[i]->pin2_state = parcel_r_int32(&rilp);
 
 		g_ril_append_print_buf(gril,
 					"%s[app_type=%d,app_state=%d,perso_substate=%d,aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
 					print_buf,
-					app_type,
-					app_state,
-					perso_substate,
-					aid_str,
-					app_str,
-					pin_replaced,
-					pin1_state,
-					pin2_state);
-
-		/* FIXME: CDMA/IMS -- see comment @ top-of-source. */
-		if (i == gsm_umts_index && app) {
-			if (aid_str) {
-				app->app_id = aid_str;
-				DBG("setting app_id (AID) to: %s", aid_str);
-			}
-
-			app->app_type = app_type;
-		} else
-			g_free(aid_str);
-
-		g_free(app_str);
+					apps[i]->app_type,
+					apps[i]->app_state,
+					apps[i]->perso_substate,
+					apps[i]->aid_str,
+					apps[i]->app_str,
+					apps[i]->pin_replaced,
+					apps[i]->pin1_state,
+					apps[i]->pin2_state);
 	}
 
+done:
 	g_ril_append_print_buf(gril, "%s}", print_buf);
 	g_ril_print_response(gril, message);
 
-	if (card_state == RIL_CARDSTATE_PRESENT)
-		result = TRUE;
-done:
 	return result;
+
+error:
+	if (apps)
+		ril_free_sim_apps(apps, status->num_apps);
+
+	return FALSE;
 }
 
 gboolean ril_util_parse_reg(GRil *gril,
@@ -713,4 +723,14 @@ gint ril_util_get_signal(GRil *gril, struct ril_msg *message)
 	}
 
 	return -1;
+}
+
+void ril_free_sim_apps(struct sim_app **apps, guint num_apps) {
+	guint i;
+
+	for (i = 0; i < num_apps; i++) {
+		g_free(apps[i]->aid_str);
+		g_free(apps[i]->app_str);
+		g_free(apps[i]);
+	}
 }
