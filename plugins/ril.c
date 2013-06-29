@@ -131,6 +131,9 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_modem *modem = user_data;
 	struct ril_data *ril = ofono_modem_get_data(modem);
+	struct sim_status status;
+	struct sim_app *apps[MAX_UICC_APPS];
+	guint i = 0;
 
 	DBG("");
 
@@ -153,12 +156,16 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 		else
 			ofono_error("Max retries for GET_SIM_STATUS exceeded!");
 	} else {
-		/* Returns TRUE if cardstate == PRESENT */
-		if (ril_util_parse_sim_status(ril->modem, message, NULL)) {
-			DBG("have_sim = TRUE; powering on modem.");
 
-			/* TODO: check PinState=DISABLED, for now just
-			 * set state to valid... */
+		/* Returns TRUE if cardstate == PRESENT */
+		if (ril_util_parse_sim_status(ril->modem, message,
+						&status, apps)) {
+			DBG("have_sim = TRUE; powering on modem; num_apps: %d",
+				status.num_apps);
+
+			if (status.num_apps)
+				ril_free_sim_apps(apps, status.num_apps);
+
 			ril->have_sim = TRUE;
 			power_on(modem);
 		} else
