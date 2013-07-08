@@ -164,7 +164,7 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 				status.num_apps);
 
 			if (status.num_apps)
-				ril_free_sim_apps(apps, status.num_apps);
+				ril_util_free_sim_apps(apps, status.num_apps);
 
 			ril->have_sim = TRUE;
 			power_on(modem);
