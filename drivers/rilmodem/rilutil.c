@@ -507,7 +507,7 @@ done:
 
 error:
 	if (apps)
-		ril_free_sim_apps(apps, status->num_apps);
+		ril_util_free_sim_apps(apps, status->num_apps);
 
 	return FALSE;
 }
@@ -725,7 +725,7 @@ gint ril_util_get_signal(GRil *gril, struct ril_msg *message)
 	return -1;
 }
 
-void ril_free_sim_apps(struct sim_app **apps, guint num_apps) {
+void ril_util_free_sim_apps(struct sim_app **apps, guint num_apps) {
 	guint i;
 
 	for (i = 0; i < num_apps; i++) {
