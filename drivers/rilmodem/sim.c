@@ -486,17 +486,39 @@ static void ril_read_imsi(struct ofono_sim *sim, ofono_sim_imsi_cb_t cb,
 	}
 }
 
+static void configure_active_app(struct sim_data *sd,
+					struct sim_app *app,
+					guint index)
+{
+	sd->app_type = app->app_type;
+	sd->aid_str = app->aid_str;
+	sd->app_str = app->app_str;
+	sd->app_index = index;
 
-/* FIXME?? There's quite a few lines in this function that exceed 80chars...
- * We should either consider loosening our code standards ( mayb 100 chars? )
- * or re-format.
- *
- * Question, does the ofono core stick to 80 char lines?
- *
- * Note - the 'if (status.num_apps) {' check is not really needed, however the
- * code was tested with this in place.  Removing it should have no effect, and
- * will fix the formatting issue.
- */
+	DBG("setting aid_str (AID) to: %s", sd->aid_str);
+	switch (app->app_state) {
+	case APPSTATE_PIN:
+		sd->passwd_state = OFONO_SIM_PASSWORD_SIM_PIN;
+		break;
+	case APPSTATE_PUK:
+		sd->passwd_state = OFONO_SIM_PASSWORD_SIM_PUK;
+		break;
+	case APPSTATE_SUBSCRIPTION_PERSO:
+		/* TODO: Check out how to dig out exact
+		 * SIM lock.
+		 */
+		sd->passwd_state = OFONO_SIM_PASSWORD_PHSIM_PIN;
+		break;
+	case APPSTATE_READY:
+		sd->passwd_state = OFONO_SIM_PASSWORD_NONE;
+		break;
+	case APPSTATE_UNKNOWN:
+	case APPSTATE_DETECTED:
+	default:
+		sd->passwd_state = OFONO_SIM_PASSWORD_INVALID;
+		break;
+	}
+}
 
 static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 {
@@ -507,67 +529,39 @@ static void sim_status_cb(struct ril_msg *message, gpointer user_data)
 	guint i = 0;
 	guint search_index = -1;
 
-	if (ril_util_parse_sim_status(sd->ril, message,	&status, apps)) {
+	if (ril_util_parse_sim_status(sd->ril, message,	&status, apps) &&
+		status.num_apps) {
 
-		if (status.num_apps) {
-			DBG("num_apps: %d gsm_umts_index: %d", status.num_apps,
-				status.gsm_umts_index);
+		DBG("num_apps: %d gsm_umts_index: %d", status.num_apps,
+			status.gsm_umts_index);
 
-			/* TODO(CDMA): need some kind of logic to
-			 * set the correct app_index,
-			 */
-			search_index = status.gsm_umts_index;
+		/* TODO(CDMA): need some kind of logic to
+		 * set the correct app_index,
+		 */
+		search_index = status.gsm_umts_index;
 
-			for (i = 0; i < status.num_apps; i++) {
-
-				if (i == search_index &&
-					apps[i]->app_type != RIL_APPTYPE_UNKNOWN) {
-					sd->app_type = apps[i]->app_type;
-					sd->aid_str = apps[i]->aid_str;
-					sd->app_str = apps[i]->app_str;
-					sd->app_index = i;
-
-					DBG("setting aid_str (AID) to: %s", sd->aid_str);
-					switch (apps[i]->app_state) {
-					case APPSTATE_PIN:
-						sd->passwd_state = OFONO_SIM_PASSWORD_SIM_PIN;
-						break;
-					case APPSTATE_PUK:
-						sd->passwd_state = OFONO_SIM_PASSWORD_SIM_PUK;
-						break;
-					case APPSTATE_SUBSCRIPTION_PERSO:
-						/* TODO: Check out how to dig out exact
-						 * SIM lock.
-						 */
-						sd->passwd_state = OFONO_SIM_PASSWORD_PHSIM_PIN;
-						break;
-					case APPSTATE_READY:
-						sd->passwd_state = OFONO_SIM_PASSWORD_NONE;
-						break;
-					case APPSTATE_UNKNOWN:
-					case APPSTATE_DETECTED:
-					default:
-						sd->passwd_state = OFONO_SIM_PASSWORD_INVALID;
-						break;
-					}
-				}
+		for (i = 0; i < status.num_apps; i++) {
+			if (i == search_index &&
+				apps[i]->app_type != RIL_APPTYPE_UNKNOWN) {
+				configure_active_app(sd, apps[i], i);
+				break;
 			}
-
-			if (sd->sim_registered == FALSE) {
-				ofono_sim_register(sim);
-				sd->sim_registered = TRUE;
-			} else
-				/* TODO: There doesn't seem to be any other
-				 * way to force the core SIM code to
-				 * recheck the PIN.
-				 * Wouldn't __ofono_sim_refresh be
-				 * more appropriate call here??
-				 * __ofono_sim_refresh(sim, NULL, TRUE, TRUE);
-				 */
-				__ofono_sim_recheck_pin(sim);
-
-			ril_free_sim_apps(apps, status.num_apps);
 		}
+
+		if (sd->sim_registered == FALSE) {
+			ofono_sim_register(sim);
+			sd->sim_registered = TRUE;
+		} else
+			/* TODO: There doesn't seem to be any other
+			 * way to force the core SIM code to
+			 * recheck the PIN.
+			 * Wouldn't __ofono_sim_refresh be
+			 * more appropriate call here??
+			 * __ofono_sim_refresh(sim, NULL, TRUE, TRUE);
+			 */
+			__ofono_sim_recheck_pin(sim);
+
+		ril_util_free_sim_apps(apps, status.num_apps);
 	}
 
 	/* TODO: if no SIM present, handle emergency calling. */
@@ -604,8 +598,11 @@ static void ril_query_passwd_state(struct ofono_sim *sim,
 					ofono_sim_passwd_cb_t cb, void *data)
 {
 	struct sim_data *sd = ofono_sim_get_data(sim);
-
 	DBG("passwd_state %u", sd->passwd_state);
+
+	if (sd->passwd_state == OFONO_SIM_PASSWORD_INVALID)
+		CALLBACK_WITH_FAILURE(cb, -1, data);
+
 	CALLBACK_WITH_SUCCESS(cb, sd->passwd_state, data);
 }
 

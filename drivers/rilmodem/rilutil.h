@@ -138,7 +138,7 @@ gint ril_util_parse_sms_response(GRil *gril, struct ril_msg *message);
 
 gint ril_util_get_signal(GRil *gril, struct ril_msg *message);
 
-void ril_free_sim_apps(struct sim_app **apps, guint num_apps);
+void ril_util_free_sim_apps(struct sim_app **apps, guint num_apps);
 
 struct cb_data {
 	void *cb;
