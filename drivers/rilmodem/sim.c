@@ -224,10 +224,8 @@ static void ril_sim_read_info(struct ofono_sim *sim, int fileid,
 	parcel_w_int32(&rilp, CMD_GET_RESPONSE);
 	parcel_w_int32(&rilp, fileid);
 
-	g_ril_start_request;
 	g_ril_append_print_buf(sd->ril,
-				"%scmd=0x%.2X,efid=0x%.4X,",
-				print_buf,
+				"(cmd=0x%.2X,efid=0x%.4X,",
 				CMD_GET_RESPONSE,
 				fileid);
 

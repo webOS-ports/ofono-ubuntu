@@ -62,10 +62,6 @@ enum operator_status {
 	OPERATOR_STATUS_FORBIDDEN =	3,
 };
 
-#ifdef RIL_DEBUG_TRACE
-static char print_buf[PRINT_BUF_SIZE];
-#endif
-
 static void extract_mcc_mnc(const char *str, char *mcc, char *mnc)
 {
 	/* Three digit country code */
@@ -148,11 +144,12 @@ static void ril_network_state_change(struct ril_msg *message, gpointer user_data
 
 	g_ril_print_request_no_args(nd->ril, ret, request);
 
-	if (ret <= 0) {
-	error:
-		ofono_error("Unable to request network state changed");
-		g_free(cbd);
-	}
+	if (ret > 0)
+		return;
+
+error:
+	ofono_error("Unable to request network state changed");
+	g_free(cbd);
 }
 
 static void ril_registration_status(struct ofono_netreg *netreg,
@@ -276,7 +273,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 
 	ril_util_init_parcel(message, &rilp);
 
-	g_ril_start_response;
+	g_ril_append_print_buf(nd->ril, "{");
 
 	/* Number of operators at the list (4 strings for every operator) */
 	noperators = parcel_r_int32(&rilp) / 4;
@@ -329,7 +326,7 @@ static void ril_cops_list_cb(struct ril_msg *message, gpointer user_data)
 		g_free(status);
 	}
 
-	g_ril_close_response;
+	g_ril_append_print_buf(nd->ril, "%s}", print_buf);
 	g_ril_print_response(nd->ril, message);
 
 	cb(&error, noperators, list, cbd->data);
