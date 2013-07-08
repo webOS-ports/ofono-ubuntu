@@ -1,3 +1,11 @@
+ofono (1.12phablet8) saucy; urgency=low
+
+  * [rilmodem] Added SIM PIN/PUK support.  This is
+    based on code from Jolla:
+    https://github.com/nemomobile-packages/ofono
+
+ -- Tony Espy <espy@canonical.com>  Mon, 08 Jul 2013 13:08:32 -0400
+
 ofono (1.12phablet7) saucy; urgency=low
 
   [ Tony Espy ]
