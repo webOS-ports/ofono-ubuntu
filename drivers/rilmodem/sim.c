@@ -490,9 +490,22 @@ static void configure_active_app(struct sim_data *sd,
 					struct sim_app *app,
 					guint index)
 {
+	size_t aid_size = 0, app_size = 0;
+
 	sd->app_type = app->app_type;
-	sd->aid_str = app->aid_str;
-	sd->app_str = app->app_str;
+
+	if (app->aid_str) {
+		aid_size = strlen(app->aid_str) + 1;
+		sd->aid_str = g_new0(gchar, aid_size);
+		strncpy(sd->aid_str, app->aid_str, aid_size);
+	}
+
+	if (app->app_str) {
+		app_size = strlen(app->app_str) + 1;
+		sd->app_str = g_new0(gchar, app_size);
+		strncpy(sd->app_str, app->app_str, app_size);
+	}
+
 	sd->app_index = index;
 
 	DBG("setting aid_str (AID) to: %s", sd->aid_str);
@@ -813,7 +826,7 @@ static void ril_change_passwd(struct ofono_sim *sim,
 	ret = g_ril_send(sd->ril, request, rilp.data, rilp.size,
 			ril_pin_change_state_cb, cbd, g_free);
 
-	g_ril_append_print_buf(sd->ril, "(puk=%s,pin=%s,aid=%s)",
+	g_ril_append_print_buf(sd->ril, "(old=%s,new=%s,aid=%s)",
 				old, new,
 				sd->aid_str);
 
