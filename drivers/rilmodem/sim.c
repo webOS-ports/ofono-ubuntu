@@ -493,19 +493,8 @@ static void configure_active_app(struct sim_data *sd,
 	size_t aid_size = 0, app_size = 0;
 
 	sd->app_type = app->app_type;
-
-	if (app->aid_str) {
-		aid_size = strlen(app->aid_str) + 1;
-		sd->aid_str = g_new0(gchar, aid_size);
-		strncpy(sd->aid_str, app->aid_str, aid_size);
-	}
-
-	if (app->app_str) {
-		app_size = strlen(app->app_str) + 1;
-		sd->app_str = g_new0(gchar, app_size);
-		strncpy(sd->app_str, app->app_str, app_size);
-	}
-
+	sd->aid_str = g_strdup(app->aid_str);
+	sd->app_str = g_strdup(app->app_str);
 	sd->app_index = index;
 
 	DBG("setting aid_str (AID) to: %s", sd->aid_str);
