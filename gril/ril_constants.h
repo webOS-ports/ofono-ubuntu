@@ -80,6 +80,9 @@
 
 #define RIL_DATA_PROFILE_DEFAULT 0
 #define RIL_DATA_PROFILE_TETHERED 1
+#define RIL_DATA_PROFILE_IMS 2
+#define RIL_DATA_PROFILE_FOTA 3           /* FOTA = Firmware Over the Air */
+#define RIL_DATA_PROFILE_CBS 4
 #define RIL_DATA_PROFILE_OEM_BASE 1000    /* Start of OEM-specific profiles */
 
 #define RIL_AUTH_NONE 0

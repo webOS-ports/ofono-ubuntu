@@ -44,6 +44,9 @@
 #define SETUP_DATA_CALL_PARAMS 7
 #define DATA_PROFILE_DEFAULT_STR "0"
 #define DATA_PROFILE_TETHERED_STR "1"
+#define DATA_PROFILE_IMS_STR "2"
+#define DATA_PROFILE_FOTA_STR "3"
+#define DATA_PROFILE_CBS_STR "4"
 #define DATA_PROFILE_OEM_BASE_STR "1000"
 #define PROTO_IP_STR "IP"
 #define PROTO_IPV6_STR "IPV6"
@@ -78,13 +81,16 @@ gboolean g_ril_setup_data_call(GRil *gril,
 	gchar tech_str[3];
 	gchar *auth_str[2];
 	gchar *profile_str;
+	size_t apn_len;
 
-	if (request->tech < RADIO_TECH_GPRS || request->tech > RADIO_TECH_GSM) {
-		error->type = OFONO_ERROR_TYPE_FAILURE;
-		error->error = -EINVAL;
-		return FALSE;
-	}
+	if (request->tech < RADIO_TECH_GPRS || request->tech > RADIO_TECH_GSM)
+		goto error;
 
+	/*
+	 * TODO(OEM): This code doesn't currently support
+	 * OEM data profiles.  If a use case exist, then
+	 * this code will need to be modified.
+	 */
 	switch (request->data_profile) {
 	case RIL_DATA_PROFILE_DEFAULT:
 		profile_str = DATA_PROFILE_DEFAULT_STR;
@@ -92,26 +98,28 @@ gboolean g_ril_setup_data_call(GRil *gril,
 	case RIL_DATA_PROFILE_TETHERED:
 		profile_str = DATA_PROFILE_TETHERED_STR;
 		break;
-	case RIL_DATA_PROFILE_OEM_BASE:
-		profile_str = DATA_PROFILE_OEM_BASE_STR;
+	case RIL_DATA_PROFILE_IMS:
+		profile_str = DATA_PROFILE_IMS_STR;
+		break;
+	case RIL_DATA_PROFILE_FOTA:
+		profile_str = DATA_PROFILE_FOTA_STR;
+		break;
+	case RIL_DATA_PROFILE_CBS:
+		profile_str = DATA_PROFILE_CBS_STR;
 		break;
 	default:
-		error->type = OFONO_ERROR_TYPE_FAILURE;
-		error->error = -EINVAL;
-		return FALSE;
+		goto error;
 	}
 
-	if (request->apn == NULL || strlen(request->apn) == 0) {
-		error->type = OFONO_ERROR_TYPE_FAILURE;
-		error->error = -EINVAL;
-		return FALSE;
-	}
+	if (request->apn == NULL)
+		goto error;
 
-	if (request->auth_type < RIL_AUTH_NONE || request->auth_type > RIL_AUTH_BOTH) {
-		error->type = OFONO_ERROR_TYPE_FAILURE;
-		error->error = -EINVAL;
-		return FALSE;
-	}
+	apn_len = strlen(request->apn);
+	if (apn_len == 0 || apn_len > 100)
+		goto error;
+
+	if (request->auth_type > RIL_AUTH_BOTH)
+		goto error;
 
 	switch (request->protocol) {
 	case OFONO_GPRS_PROTO_IPV6:
@@ -124,12 +132,8 @@ gboolean g_ril_setup_data_call(GRil *gril,
 		protocol_str = PROTO_IP_STR;
 		break;
 	default:
-		error->type = OFONO_ERROR_TYPE_FAILURE;
-		error->error = -EINVAL;
-		return FALSE;
+		goto error;
 	}
-
-	g_print("About to write num params\n");
 
 	parcel_w_int32(rilp, SETUP_DATA_CALL_PARAMS);
 
@@ -140,15 +144,11 @@ gboolean g_ril_setup_data_call(GRil *gril,
 	parcel_w_string(rilp, (char *) request->username);
 	parcel_w_string(rilp, (char *) request->password);
 
-	g_print("About to set auth_type %d\n", request->auth_type);
-
 	sprintf((char *) auth_str, "%d", request->auth_type);
 
-	g_print("auth_str is %s\n", auth_str);
 	parcel_w_string(rilp, (char *) auth_str);
 	parcel_w_string(rilp, (char *) protocol_str);
 
-	g_print("About to call append_print_buf\n");
 	/* ...or this could go in the calling function,
 	 * which means we'd get rid of the *request param */
 	g_ril_append_print_buf(gril,
@@ -161,7 +161,14 @@ gboolean g_ril_setup_data_call(GRil *gril,
 				auth_str,
 				protocol_str);
 
+	error->type = OFONO_ERROR_TYPE_NO_ERROR;
+	error->error = 0;
 	return TRUE;
+
+error:
+	error->type = OFONO_ERROR_TYPE_FAILURE;
+	error->error = -EINVAL;
+	return FALSE;
 }
 
 

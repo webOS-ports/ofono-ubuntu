@@ -32,13 +32,13 @@ extern "C" {
 #endif
 
 struct setup_data_call_req {
-	gint tech;
-	gint data_profile;
+	guint tech;
+	guint data_profile;
 	gchar *apn;
 	gchar *username;
 	gchar *password;
-	gint auth_type;
-	gint protocol;
+	guint auth_type;
+	guint protocol;
 };
 
 gboolean g_ril_setup_data_call(GRil *gril,
