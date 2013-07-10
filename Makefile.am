@@ -686,7 +686,7 @@ unit_objects =
 unit_tests = unit/test-common unit/test-util unit/test-idmap \
 				unit/test-simutil unit/test-stkutil \
 				unit/test-sms unit/test-cdmasms \
-				unit/test-ril-messages
+				unit/test-grilmessages
 
 noinst_PROGRAMS = $(unit_tests) \
 			unit/test-sms-root unit/test-mux unit/test-caif
@@ -738,10 +738,10 @@ unit_test_caif_SOURCES = unit/test-caif.c $(gatchat_sources) \
 unit_test_caif_LDADD = @GLIB_LIBS@
 unit_objects += $(unit_test_caif_OBJECTS)
 
-unit_test_ril_messages_SOURCES = unit/test-ril-messages.c $(gril_sources) \
+unit_test_grilmessages_SOURCES = unit/test-grilmessages.c $(gril_sources) \
 				src/log.c gatchat/ringbuffer.c
-unit_test_ril_messages_LDADD = @GLIB_LIBS@
-unit_objects += $(unit_test_ril_messages_OBJECTS)
+unit_test_grilmessages_LDADD = @GLIB_LIBS@
+unit_objects += $(unit_test_grilmessages_OBJECTS)
 
 TESTS = $(unit_tests)
 
