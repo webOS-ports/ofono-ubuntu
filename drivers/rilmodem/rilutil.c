@@ -171,6 +171,8 @@ gchar *ril_util_get_netmask(const gchar *address)
 	return result;
 }
 
+/* TODO: this function can go away, once all the code has been
+ * re-factored to use grilreply.c */
 void ril_util_init_parcel(struct ril_msg *message, struct parcel *rilp)
 {
 	/* Set up Parcel struct for proper parsing */

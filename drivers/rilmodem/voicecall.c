@@ -33,7 +33,7 @@
 #include <glib.h>
 
 /* For AudioFlinger settings */
-#include <waudio.h>
+/*#include <waudio.h> */
 
 #include <ofono/log.h>
 #include <ofono/modem.h>
@@ -86,16 +86,17 @@ static void audioflinger_set_call_mode()
 
 	/* Set the call mode in AudioFlinger */
 	DBG("Setting AudioFlinger to call state");
-	AudioSystem_setMode(AUDIO_MODE_IN_CALL);
+/*	AudioSystem_setMode(AUDIO_MODE_IN_CALL); */
 
 	DBG("Setting sound route to earpiece");
-	sprintf(parameter, "routing=%d", AUDIO_DEVICE_OUT_EARPIECE);
+/*	sprintf(parameter, "routing=%d", AUDIO_DEVICE_OUT_EARPIECE); */
 
 	/* Try the first 3 threads, as this is not fixed and there's no easy
 	 * way to retrieve the default thread/output from Android */
 	for (i = 1; i <= 3; i++) {
-		if (AudioSystem_setParameters(i, parameter) >= 0)
+/*		if (AudioSystem_setParameters(i, parameter) >= 0)
 			break;
+*/
 	}
 }
 
@@ -105,19 +106,20 @@ static void audioflinger_set_normal_mode()
 	int i;
 
 	DBG("Setting AudioFlinger to normal mode");
-	AudioSystem_setMode(AUDIO_MODE_NORMAL);
+/*	AudioSystem_setMode(AUDIO_MODE_NORMAL); */
 
 	DBG("Setting sound route back to speaker");
 
 	/* Get device back to speaker mode, as by default in_call
 	 * mode sets up device out to earpiece */
-	sprintf(parameter, "routing=%d", AUDIO_DEVICE_OUT_SPEAKER);
+/*	sprintf(parameter, "routing=%d", AUDIO_DEVICE_OUT_SPEAKER); */
 
 	/* Try the first 3 threads, as this is not fixed and there's no easy
 	 * way to retrieve the default thread/output from Android */
 	for (i = 1; i <= 3; i++) {
-		if (AudioSystem_setParameters(i, parameter) >= 0)
+/*		if (AudioSystem_setParameters(i, parameter) >= 0) 
 			break;
+*/
 	}
 }
 

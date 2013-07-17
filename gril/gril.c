@@ -40,6 +40,7 @@
 #include "log.h"
 #include "ringbuffer.h"
 #include "gril.h"
+#include "grilutil.h"
 
 #define RIL_TRACE(ril, fmt, arg...) do {	\
 	if (ril->trace == TRUE)		        \
@@ -956,6 +957,15 @@ static gboolean ril_unregister(struct ril_s *ril, gboolean mark_only,
 	return FALSE;
 }
 
+void g_ril_init_parcel(struct ril_msg *message, struct parcel *rilp)
+{
+	/* Set up Parcel struct for proper parsing */
+	rilp->data = message->buf;
+	rilp->size = message->buf_len;
+	rilp->capacity = message->buf_len;
+	rilp->offset = 0;
+}
+
 GRil *g_ril_new()
 {
 	GRil *ril;
@@ -1022,7 +1032,7 @@ GRil *g_ril_ref(GRil *ril)
 	return ril;
 }
 
-guint g_ril_send(GRil *ril, const guint req, const char *data,
+guint g_ril_send(GRil *ril, const guint reqid, const char *data,
 			const gsize data_len, GRilResponseFunc func,
 			gpointer user_data, GDestroyNotify notify)
 {
@@ -1034,7 +1044,7 @@ guint g_ril_send(GRil *ril, const guint req, const char *data,
 
         p = ril->parent;
 
-	r = ril_request_create(p, ril->group, req, p->next_cmd_id,
+	r = ril_request_create(p, ril->group, reqid, p->next_cmd_id,
 				data, data_len, func,
 				user_data, notify, FALSE);
 	if (r == NULL)

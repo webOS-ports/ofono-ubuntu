@@ -20,48 +20,32 @@
  *
  */
 
-#ifndef __GRILMESSAGES_H
-#define __GRILMESSAGES_H
-
-#include <ofono/types.h>
-
-#include "parcel.h"
-
-#ifdef __cplusplus
-extern "C" {
+#ifdef HAVE_CONFIG_H
+#include <config.h>
 #endif
 
-struct setup_data_call_req {
-	guint tech;
-	guint data_profile;
-	gchar *apn;
-	gchar *username;
-	gchar *password;
-	guint auth_type;
-	guint protocol;
-};
+#include <stdio.h>
+#include <ctype.h>
+#include <errno.h>
+#include <string.h>
 
-gboolean g_ril_setup_data_call(GRil *gril,
-				const struct setup_data_call_req *request,
-				struct parcel *rilp, struct ofono_error *error);
+#include <glib.h>
 
-struct setup_data_call_reply {
-	gint status;
-	gint cid;
-	gchar *ifname;
-	gchar **dns_addresses;
-	gchar **gateways;
-	gchar **ip_addrs;
-};
+#include <ofono/log.h>
+#include <ofono/modem.h>
+#include <ofono/gprs-context.h>
 
-gboolean g_ril_parse_data_call_reply(GRil *gril,
-					struct setup_data_call_reply *reply,
-					struct parcel *rilp,
-					struct ofono_error *error);
+#include "grilunsol.h"
 
+struct unsol_data_call_list *g_ril_unsol_parse_data_call_list(GRil *gril,
+					struct ril_msg *message,
+					struct ofono_error *error)
+{
+	struct parcel rilp;
+	struct unsol_data_call_list *reply =
+		g_new0(struct unsol_data_call_list, 1);
 
-#ifdef __cplusplus
+error:
+
+	return reply;
 }
-#endif
-
-#endif /* __GRILMESSAGES_H */

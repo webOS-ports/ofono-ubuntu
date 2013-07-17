@@ -27,9 +27,8 @@
 extern "C" {
 #endif
 
-#include "grilresponse.h"
-#include "grilutil.h"
 #include "grilio.h"
+#include "parcel.h"
 #include "ril_constants.h"
 
 struct _GRil;
@@ -53,6 +52,11 @@ struct ril_msg {
 typedef void (*GRilResponseFunc)(struct ril_msg *message, gpointer user_data);
 
 typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
+
+#define G_RIL_EINVAL(error) do {	       \
+	error->type = OFONO_ERROR_TYPE_FAILURE; \
+	error->error = -EINVAL;                 \
+} while (0)
 
 /**
  * TRACE:
@@ -92,6 +96,8 @@ static char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
 #define g_ril_print_unsol_no_args(gril, message)				\
         G_RIL_TRACE(gril, "[UNSOL]< %s", ril_unsol_request_to_string(message->req))
 
+void g_ril_init_parcel(struct ril_msg *message, struct parcel *rilp);
+
 GRil *g_ril_new();
 
 GIOChannel *g_ril_get_channel(GRil *ril);
@@ -127,8 +133,9 @@ gboolean g_ril_set_debugf(GRil *ril, GRilDebugFunc func, gpointer user_data);
  * g_ril_cancel.  If an error occurred, an id of 0 is returned.
  *
  */
-guint g_ril_send(GRil *ril, const guint req, const char *data, const gsize data_len,
-		GRilResponseFunc func, gpointer user_data, GDestroyNotify notify);
+guint g_ril_send(GRil *ril, const guint reqid, const char *data,
+			const gsize data_len, GRilResponseFunc func,
+			gpointer user_data, GDestroyNotify notify);
 
 guint g_ril_register(GRil *ril, const int req,
 			GRilNotifyFunc func, gpointer user_data);
