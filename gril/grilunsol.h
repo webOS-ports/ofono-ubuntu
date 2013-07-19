@@ -32,8 +32,24 @@ extern "C" {
 #endif
 
 struct unsol_data_call_list {
-	guint foo;
+	guint version;
+	guint num;
+	GSList *call_list;
 };
+
+struct data_call {
+    guint status;
+    guint retry;
+    guint cid;
+    guint active;
+    char *type;
+    char *ifname;
+    char *addresses;
+    char *dnses;
+    char *gateways;
+};
+
+void g_ril_unsol_free_data_call_list(struct unsol_data_call_list *unsol);
 
 struct unsol_data_call_list *g_ril_unsol_parse_data_call_list(GRil *gril,
 					struct ril_msg *message,

@@ -97,20 +97,6 @@ gint ril_util_call_compare_by_id(gconstpointer a, gconstpointer b)
 	return 0;
 }
 
-gint ril_util_data_call_compare(gconstpointer a, gconstpointer b)
-{
-	const struct data_call *ca = a;
-	const struct data_call *cb = b;
-
-	if (ca->cid < cb->cid)
-		return -1;
-
-	if (ca->cid > cb->cid)
-		return 1;
-
-	return 0;
-}
-
 gint ril_util_call_compare(gconstpointer a, gconstpointer b)
 {
 	const struct ofono_call *ca = a;
@@ -277,73 +263,6 @@ GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message)
 					call->phone_number.number, call->name);
 
 		l = g_slist_insert_sorted(l, call, ril_util_call_compare);
-	}
-
-	g_ril_append_print_buf(gril, "%s}", print_buf);
-	g_ril_print_response(gril, message);
-
-	return l;
-}
-
-GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message)
-{
-	struct data_call *call;
-	struct parcel rilp;
-	GSList *l = NULL;
-	int num, i, version;
-	gchar *number, *name;
-
-	ril_util_init_parcel(message, &rilp);
-
-	/*
-	 * ril.h documents the reply to a RIL_REQUEST_DATA_CALL_LIST
-	 * as being an array of  RIL_Data_Call_Response_v6 structs,
-	 * however in reality, the response also includes a version
-	 * to start.
-	 */
-	version = parcel_r_int32(&rilp);
-
-	/* Number of calls */
-	num = parcel_r_int32(&rilp);
-
-	g_ril_append_print_buf(gril,
-				"(version=%d,num=%d",
-				version,
-				num);
-
-	for (i = 0; i < num; i++) {
-		call = g_try_new(struct data_call, 1);
-		if (call == NULL)
-			break;
-
-		call->status = parcel_r_int32(&rilp);
-		call->retry = parcel_r_int32(&rilp);
-		call->cid = parcel_r_int32(&rilp);
-		call->active = parcel_r_int32(&rilp);
-
-		call->type = parcel_r_string(&rilp);
-		call->ifname = parcel_r_string(&rilp);
-		call->addresses = parcel_r_string(&rilp);
-		call->dnses = parcel_r_string(&rilp);
-		call->gateways = parcel_r_string(&rilp);
-
-		/* TODO: figure out how to line-wrap properly
-		 * without introducing spaces in string.
-		 */
-		g_ril_append_print_buf(gril,
-					"%s [status=%d,retry=%d,cid=%d,active=%d,type=%s,ifname=%s,address=%s,dns=%s,gateways=%s]",
-					print_buf,
-					call->status,
-					call->retry,
-					call->cid,
-					call->active,
-					call->type,
-					call->ifname,
-					call->addresses,
-					call->dnses,
-					call->gateways);
-
-		l = g_slist_insert_sorted(l, call, ril_util_data_call_compare);
 	}
 
 	g_ril_append_print_buf(gril, "%s}", print_buf);

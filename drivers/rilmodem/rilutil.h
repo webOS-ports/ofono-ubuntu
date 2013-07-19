@@ -62,18 +62,6 @@ enum at_util_charset {
 	RIL_UTIL_CHARSET_8859_H =	0x10000,
 };
 
-struct data_call {
-    int             status;
-    int             retry;
-    int             cid;
-    int             active;
-    char *          type;
-    char *          ifname;
-    char *          addresses;
-    char *          dnses;
-    char *          gateways;
-};
-
 struct sim_app {
 	char *app_id;
 	guint app_type;
@@ -97,7 +85,6 @@ struct ril_util_sim_state_query *ril_util_sim_state_query_new(GRil *ril,
 void ril_util_sim_state_query_free(struct ril_util_sim_state_query *req);
 
 GSList *ril_util_parse_clcc(GRil *gril, struct ril_msg *message);
-GSList *ril_util_parse_data_call_list(GRil *gril, struct ril_msg *message);
 char *ril_util_parse_sim_io_rsp(GRil *gril, struct ril_msg *message,
 				int *sw1, int *sw2,
 				int *hex_len);

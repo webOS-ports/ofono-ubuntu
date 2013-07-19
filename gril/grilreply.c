@@ -67,6 +67,8 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 	struct reply_setup_data_call *reply =
 		g_new0(struct reply_setup_data_call, 1);
 
+	OFONO_NO_ERROR(error);
+
        /* TODO:
 	 * Cleanup duplicate code between this function and
 	 * ril_util_parse_data_call_list().
@@ -74,7 +76,11 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 
 	/* valid size: 36 (34 if HCRADIO defined) */
 	if (message->buf_len < MIN_DATA_CALL_REPLY_SIZE) {
-		G_RIL_EINVAL(error);
+		/* TODO: make a macro for error logging */
+		ofono_error("%s: reply too small: %d",
+				__func__,
+				(int) message->buf_len);
+		OFONO_EINVAL(error);
 		goto error;
 	}
 
@@ -98,7 +104,8 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 	reply->version = parcel_r_int32(&rilp);
 	num = parcel_r_int32(&rilp);
 	if (num != 1) {
-		G_RIL_EINVAL(error);
+		ofono_error("%s: too many calls: %d", __func__,	num);
+		OFONO_EINVAL(error);
 		goto error;
 	}
 
@@ -128,20 +135,25 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 				dnses,
 				raw_gws);
 
+	g_ril_print_response(gril, message);
+
 	protocol = ril_protocol_string_to_ofono_protocol(type);
 	if (protocol < 0) {
-		DBG("Invalid type(protocol) specified: %s", type);
-
-		G_RIL_EINVAL(error);
+		ofono_error("%s: Invalid type(protocol) specified: %s",
+				__func__,
+				type);
+		OFONO_EINVAL(error);
 		goto error;
 	}
 
 	reply->protocol = (guint) protocol;
 
 	if (reply->ifname == NULL || strlen(reply->ifname) == 0) {
-		DBG("No interface specified: %s", reply->ifname);
+		ofono_error("%s: No interface specified: %s",
+				__func__,
+				reply->ifname);
 
-		G_RIL_EINVAL(error);
+		OFONO_EINVAL(error);
 		goto error;
 
 	}
@@ -167,9 +179,9 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 	 * simplified.
 	 */
 	if (reply->ip_addrs == NULL || (sizeof(reply->ip_addrs) == 0)) {
-		DBG("No IP address specified: %s", raw_ip_addrs);
+		ofono_error("%s no IP address: %s", __func__, raw_ip_addrs);
 
-		G_RIL_EINVAL(error);
+		OFONO_EINVAL(error);
 		goto error;
 	}
 
@@ -183,9 +195,8 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 		reply->gateways = NULL;
 
 	if (reply->gateways == NULL || (sizeof(reply->gateways) == 0)) {
-		DBG("Invalid gateways field returned: %s", raw_gws);
-
-		G_RIL_EINVAL(error);
+		ofono_error("%s: no gateways: %s", __func__, raw_gws);
+		OFONO_EINVAL(error);
 		goto error;
 	}
 
@@ -197,14 +208,11 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 
 	if (reply->dns_addresses == NULL ||
 		(sizeof(reply->dns_addresses) == 0)) {
-		DBG("Invalid dnses returned: %s", dnses);
+		ofono_error("%s: no DNS: %s", __func__, dnses);
 
-		G_RIL_EINVAL(error);
+		OFONO_EINVAL(error);
 		goto error;
 	}
-
-	error->type = OFONO_ERROR_TYPE_NO_ERROR;
-	error->error = 0;
 
 error:
 	g_free(type);

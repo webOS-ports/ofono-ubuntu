@@ -38,9 +38,9 @@
 #include <ofono/gprs-context.h>
 #include <ofono/types.h>
 
-#include "grilrequest.h"
 #include "grilreply.h"
-#include "grilutil.h"
+#include "grilrequest.h"
+#include "grilunsol.h"
 
 #include "rilmodem.h"
 
@@ -58,29 +58,37 @@ struct gprs_context_data {
 	enum state state;
 };
 
+static void set_context_disconnected(struct gprs_context_data *gcd)
+{
+	DBG("");
+
+	gcd->active_ctx_cid = -1;
+	gcd->active_rild_cid = -1;
+	gcd->state = STATE_IDLE;
+}
+
 static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 						gpointer user_data)
 {
 	struct ofono_gprs_context *gc = user_data;
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct data_call *call = NULL;
+	struct unsol_data_call_list *unsol;
 	gboolean active_cid_found = FALSE;
 	gboolean disconnect = FALSE;
-	GSList *calls = NULL, *iterator = NULL;
+	GSList *iterator = NULL;
+	struct ofono_error error;
 
 	DBG("");
 
-	if (message->req != RIL_UNSOL_DATA_CALL_LIST_CHANGED) {
-		ofono_error("ril_gprs_update_calls: invalid message received %d",
-				message->req);
-		return;
-	}
+	unsol = g_ril_unsol_parse_data_call_list(gcd->ril, message, &error);
 
-	calls = ril_util_parse_data_call_list(gcd->ril, message);
+	if (error.type != OFONO_ERROR_TYPE_NO_ERROR)
+		goto error;
 
-	DBG("number of call in call_list_changed is: %d", g_slist_length(calls));
+	DBG("number of call in call_list_changed is: %d", unsol->num);
 
-	for (iterator = calls; iterator; iterator = iterator->next) {
+	for (iterator = unsol->call_list; iterator; iterator = iterator->next) {
 		call = (struct data_call *) iterator->data;
 
 		if (call->cid == gcd->active_rild_cid) {
@@ -100,13 +108,11 @@ static void ril_gprs_context_call_list_changed(struct ril_msg *message,
 	if (disconnect || active_cid_found == FALSE) {
 		DBG("Clearing active context");
 
-		gcd->active_ctx_cid = -1;
-		gcd->active_rild_cid = -1;
-		gcd->state = STATE_IDLE;
+		set_context_disconnected(gcd);
 	}
 
-	g_slist_foreach(calls, (GFunc) g_free, NULL);
-	g_slist_free(calls);
+error:
+	g_ril_unsol_free_data_call_list(unsol);
 }
 
 static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
@@ -117,25 +123,45 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
 	struct ofono_error error;
 	struct reply_setup_data_call *reply;
-	gboolean valid_reply = FALSE;
 	char **split_ip_addr = NULL;
 
 	if (message->error != RIL_E_SUCCESS) {
 		DBG("Reply failure: %s", ril_error_to_string(message->error));
-		decode_ril_error(&error, "FAIL");
+
+		error.type = OFONO_ERROR_TYPE_FAILURE;
 		error.error = message->error;
+
+		set_context_disconnected(gcd);
 		goto error;
 	}
 
 	reply = g_ril_reply_parse_data_call(gcd->ril, message, &error);
-	g_ril_print_response(gcd->ril, message);
 
-	if (!valid_reply)
+	/* TODO:
+	 * Any of these errors are caused invalid messages, which
+	 * shouldn't happen in a production environment.  Need to
+	 * to ensure that no active call is left in place... if/when
+	 * these occur.  Need to check if ofono will call deactivate
+	 * in this case...
+	 *
+	 * If ofono doesn't handle, then we should probably call
+	 * ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid),
+	 * like the unsol_call_list code does!
+	 */
+	if (error.type != OFONO_ERROR_TYPE_NO_ERROR) {
+		set_context_disconnected(gcd);
 		goto error;
+	}
 
 	if (reply->status != 0) {
-		DBG("Reply failure; status %d", reply->status);
-		gcd->state = STATE_IDLE;
+		ofono_error("%s: reply->status is non-zero: %d",
+				__func__,
+				reply->status);
+
+		error.type = OFONO_ERROR_TYPE_FAILURE;
+		error.error = reply->status;
+
+		set_context_disconnected(gcd);
 		goto error;
 	}
 
@@ -147,9 +173,17 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	 * explicitly strip any prefix after calculating the netmask.
 	 */
 	split_ip_addr = g_strsplit(reply->ip_addrs[0], "/", 2);
+
+	/* TODO: see note above re: invalid messages... */
 	if (split_ip_addr[0] == NULL) {
-		DBG("Invalid IP address field returned: %s", reply->ip_addrs[0]);
-		decode_ril_error(&error, "FAIL");
+		ofono_error("%s: invalid IP address field returned: %s",
+				__func__,
+				reply->ip_addrs[0]);
+
+		error.type = OFONO_ERROR_TYPE_FAILURE;
+		error.error = EINVAL;
+
+		set_context_disconnected(gcd);
 		goto error;
 	}
 
@@ -175,8 +209,6 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	ofono_gprs_context_set_ipv4_dns_servers(gc,
 						(const char **) reply->dns_addresses);
 
-	decode_ril_error(&error, "OK");
-
 error:
 	g_ril_reply_free_setup_data_call(reply);
 	g_strfreev(split_ip_addr);
@@ -194,11 +226,11 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	struct parcel rilp;
 	struct ofono_error error;
 	int reqid = RIL_REQUEST_SETUP_DATA_CALL;
-	int ret;
+	int ret = 0;
+
+	DBG("Activating contex: %d", ctx->cid);
 
 	cbd->user = gc;
-	gcd->active_ctx_cid = ctx->cid;
-	gcd->state = STATE_ENABLING;
 
 	/* TODO: implement radio technology selection. */
 	request.tech = RADIO_TECH_HSPA;
@@ -207,16 +239,22 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	 * profiles...
 	 */
 	request.data_profile = RIL_DATA_PROFILE_DEFAULT;
-	request.apn = ctx->apn;
-	request.username = ctx->username;
-	request.password = ctx->password;
+	request.apn = g_strdup(ctx->apn);
+	request.username = g_strdup(ctx->username);
+	request.password = g_strdup(ctx->password);
 	request.auth_type = RIL_AUTH_BOTH;
 	request.protocol = ctx->proto;
 
-	if (g_ril_request_setup_data_call(gcd->ril, &request, &rilp, &error)) {
+	if (g_ril_request_setup_data_call(gcd->ril,
+						&request,
+						&rilp,
+						&error) == FALSE) {
 		ofono_error("Couldn't build SETUP_DATA_CALL request.");
 		goto error;
 	}
+
+	gcd->active_ctx_cid = ctx->cid;
+	gcd->state = STATE_ENABLING;
 
 	ret = g_ril_send(gcd->ril,
 				reqid,
@@ -230,8 +268,14 @@ static void ril_gprs_context_activate_primary(struct ofono_gprs_context *gc,
 	parcel_free(&rilp);
 
 error:
+	g_free(request.apn);
+	g_free(request.username);
+	g_free(request.password);
+
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_SETUP_DATA_CALL failed.");
+
+		set_context_disconnected(gcd);
 
 		g_free(cbd);
 		CALLBACK_WITH_FAILURE(cb, data);
@@ -251,6 +295,7 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	/* Reply has no data... */
 	if (message->error == RIL_E_SUCCESS) {
 
+		/* set_context_disconnected handled by incoming CALL_LIST_CHANGED */
 		g_ril_print_response_no_args(gcd->ril, message);
 
 		gcd->state = STATE_IDLE;
@@ -259,7 +304,7 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	} else {
 		DBG("Reply failure: %s", ril_error_to_string(message->error));
 
-		decode_ril_error(&error, "FAIL");
+		error.type = OFONO_ERROR_TYPE_FAILURE;
 		error.error = message->error;
 
 		cb(&error, cbd->data);
@@ -276,7 +321,9 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 	struct req_deactivate_data_call request;
 	struct ofono_error error;
 	int reqid = RIL_REQUEST_DEACTIVATE_DATA_CALL;
-	int ret;
+	int ret = 0;
+
+	DBG("");
 
 	cbd->user = gc;
 
@@ -286,7 +333,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 	request.reason = RIL_DEACTIVATE_DATA_CALL_NO_REASON;
 
 	if (g_ril_request_deactivate_data_call(gcd->ril, &request,
-						&rilp, &error)) {
+						&rilp, &error) == FALSE) {
 		ofono_error("Couldn't build DEACTIVATE_DATA_CALL request.");
 		goto error;
 	}
@@ -329,9 +376,7 @@ static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
 		return -ENOMEM;
 
 	gcd->ril = g_ril_clone(ril);
-	gcd->active_ctx_cid = -1;
-	gcd->active_rild_cid = -1;
-	gcd->state = STATE_IDLE;
+	set_context_disconnected(gcd);
 
 	ofono_gprs_context_set_data(gc, gcd);
 
