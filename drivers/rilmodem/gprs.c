@@ -67,25 +67,6 @@ struct gprs_data {
 	int status;
 };
 
-static void ril_gprs_registration_status(struct ofono_gprs *gprs,
-						ofono_gprs_status_cb_t cb,
-						void *data);
-
-static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
-{
-	struct ofono_gprs *gprs = user_data;
-
-	if (message->req != RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED) {
-		ofono_error("ril_gprs_state_change: invalid message received %d",
-				message->req);
-		return;
-	}
-
-	/* receipt of tihs event is already logged in network-registration */
-
-	ril_gprs_registration_status(gprs, NULL, NULL);
-}
-
 static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
 						gpointer user_data)
 {
@@ -176,21 +157,13 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if (gd->status == -1) {
+	if (gd->status == -1)
 		ofono_gprs_register(gprs);
-
-		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
-				ril_gprs_state_change, gprs);
-	}
 
 	if (max_cids > gd->max_cids) {
 		DBG("Setting max cids to %d", max_cids);
 		gd->max_cids = max_cids;
 		ofono_gprs_set_cid_range(gprs, 1, max_cids);
-	}
-
-	if (gd->status != status) {
-		ofono_gprs_status_notify(gprs, status);
 	}
 
 	gd->status = status;
