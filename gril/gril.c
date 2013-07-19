@@ -120,6 +120,9 @@ struct ril_reply {
 	guint32 error_code;                     /* LE: */
 };
 
+#define RIL_PRINT_BUF_SIZE 8096
+char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
+
 static void ril_wakeup_writer(struct ril_s *ril);
 
 static void ril_notify_node_destroy(gpointer data, gpointer user_data)
@@ -241,7 +244,7 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 
 
 	DBG("req: %s, id: %d, data_len: %d",
-		ril_request_id_to_string(req), id, data_len);
+		ril_request_id_to_string(req), id, (int) data_len);
 
         /* RIL request: 8 byte header + data */
         len = 8 + data_len;
@@ -635,7 +638,9 @@ static gboolean can_write_data(gpointer data)
 
 	len = req->data_len;
 
-	DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
+	DBG("len: %d, req_bytes_written: %d",
+		(int) len,
+		ril->req_bytes_written);
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
@@ -811,8 +816,6 @@ static struct ril_s *create_ril()
 		return NULL;
         }
 
-	g_io_channel_set_buffered(io, FALSE);
-	g_io_channel_set_encoding(io, NULL, NULL);
 	g_io_channel_set_close_on_unref(io, TRUE);
 	g_io_channel_set_flags(io, G_IO_FLAG_NONBLOCK, NULL);
 

@@ -28,6 +28,7 @@ extern "C" {
 #endif
 
 #include "grilio.h"
+#include "grilutil.h"
 #include "parcel.h"
 #include "ril_constants.h"
 
@@ -53,9 +54,14 @@ typedef void (*GRilResponseFunc)(struct ril_msg *message, gpointer user_data);
 
 typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
 
-#define G_RIL_EINVAL(error) do {	       \
+#define OFONO_EINVAL(error) do {	       \
 	error->type = OFONO_ERROR_TYPE_FAILURE; \
 	error->error = -EINVAL;                 \
+} while (0)
+
+#define OFONO_NO_ERROR(error) do {	       \
+	error->type = OFONO_ERROR_TYPE_NO_ERROR; \
+	error->error = 0;                 \
 } while (0)
 
 /**
@@ -71,8 +77,7 @@ typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
 		ofono_debug(fmt, ## arg); 	\
 } while (0)
 
-#define RIL_PRINT_BUF_SIZE 8096
-static char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
+extern char print_buf[];
 
 #define g_ril_print_request(gril, token, req)			\
         G_RIL_TRACE(gril, "[%04d]> %s %s", token, ril_request_id_to_string(req), print_buf)
