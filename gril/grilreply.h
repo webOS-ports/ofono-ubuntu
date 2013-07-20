@@ -34,7 +34,7 @@ extern "C" {
 struct reply_setup_data_call {
 	guint version;
 	guint status;
-	guint cid;
+	gint cid;
 	guint retry_time;
 	guint active;
 	guint protocol;

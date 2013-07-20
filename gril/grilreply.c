@@ -69,6 +69,8 @@ struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
 
 	OFONO_NO_ERROR(error);
 
+	reply->cid = -1;
+
        /* TODO:
 	 * Cleanup duplicate code between this function and
 	 * ril_util_parse_data_call_list().

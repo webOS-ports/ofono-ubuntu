@@ -58,6 +58,10 @@ struct gprs_context_data {
 	enum state state;
 };
 
+static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
+						unsigned int id,
+						ofono_gprs_context_cb_t cb, void *data);
+
 static void set_context_disconnected(struct gprs_context_data *gcd)
 {
 	DBG("");
@@ -65,6 +69,11 @@ static void set_context_disconnected(struct gprs_context_data *gcd)
 	gcd->active_ctx_cid = -1;
 	gcd->active_rild_cid = -1;
 	gcd->state = STATE_IDLE;
+}
+
+static void disconnect_context(struct ofono_gprs_context *gc)
+{
+	ril_gprs_context_deactivate_primary(gc, 0, NULL, NULL);
 }
 
 static void ril_gprs_context_call_list_changed(struct ril_msg *message,
@@ -137,19 +146,12 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 
 	reply = g_ril_reply_parse_data_call(gcd->ril, message, &error);
 
-	/* TODO:
-	 * Any of these errors are caused invalid messages, which
-	 * shouldn't happen in a production environment.  Need to
-	 * to ensure that no active call is left in place... if/when
-	 * these occur.  Need to check if ofono will call deactivate
-	 * in this case...
-	 *
-	 * If ofono doesn't handle, then we should probably call
-	 * ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid),
-	 * like the unsol_call_list code does!
-	 */
+	gcd->active_rild_cid = reply->cid;
+
 	if (error.type != OFONO_ERROR_TYPE_NO_ERROR) {
-		set_context_disconnected(gcd);
+		if (gcd->active_rild_cid != -1)
+			disconnect_context(gc);
+
 		goto error;
 	}
 
@@ -188,7 +190,6 @@ static void ril_setup_data_call_cb(struct ril_msg *message, gpointer user_data)
 	}
 
 	gcd->state = STATE_ACTIVE;
-	gcd->active_rild_cid = reply->cid;
 
 	ofono_gprs_context_set_interface(gc, reply->ifname);
 
@@ -295,20 +296,27 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	/* Reply has no data... */
 	if (message->error == RIL_E_SUCCESS) {
 
-		/* set_context_disconnected handled by incoming CALL_LIST_CHANGED */
 		g_ril_print_response_no_args(gcd->ril, message);
 
-		gcd->state = STATE_IDLE;
-		CALLBACK_WITH_SUCCESS(cb, cbd->data);
+		set_context_disconnected(gcd);
 
+		if (cb) {
+			error.type = OFONO_ERROR_TYPE_NO_ERROR;
+			error.error = 0;
+		}
 	} else {
-		DBG("Reply failure: %s", ril_error_to_string(message->error));
+		ofono_error("%s: replay failure: %s",
+				__func__,
+				ril_error_to_string(message->error));
 
-		error.type = OFONO_ERROR_TYPE_FAILURE;
-		error.error = message->error;
-
-		cb(&error, cbd->data);
+		if (cb) {
+			error.type = OFONO_ERROR_TYPE_FAILURE;
+			error.error = message->error;
+		}
 	}
+
+	if (cb)
+		cb(&error, cbd->data);
 }
 
 static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
@@ -353,7 +361,8 @@ error:
 	if (ret <= 0) {
 		ofono_error("Send RIL_REQUEST_DEACTIVATE_DATA_CALL failed.");
 		g_free(cbd);
-		CALLBACK_WITH_FAILURE(cb, data);
+		if (cb)
+			CALLBACK_WITH_FAILURE(cb, data);
 	}
 }
 
