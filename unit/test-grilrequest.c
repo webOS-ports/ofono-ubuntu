@@ -189,8 +189,6 @@ static void test_deactivate_data_call_valid(gconstpointer data)
 	gboolean result;
 	struct parcel rilp;
 	struct ofono_error error;
-	guchar foo[] = { 0xff, 0xff, 0xff };
-	guchar bar[] = { 0xff, 0xff, 0xff };
 
 	result = g_ril_request_deactivate_data_call(NULL, request, &rilp, &error);
 	g_assert(result == TRUE);
