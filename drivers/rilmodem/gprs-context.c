@@ -53,8 +53,8 @@ enum state {
 
 struct gprs_context_data {
 	GRil *ril;
-	unsigned int active_ctx_cid;
-	unsigned int active_rild_cid;
+	guint active_ctx_cid;
+	gint active_rild_cid;
 	enum state state;
 };
 
@@ -289,7 +289,6 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 	ofono_gprs_context_cb_t cb = cbd->cb;
 	struct ofono_gprs_context *gc = cbd->user;
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
-	struct ofono_error error;
 
 	DBG("");
 
@@ -300,23 +299,23 @@ static void ril_deactivate_data_call_cb(struct ril_msg *message, gpointer user_d
 
 		set_context_disconnected(gcd);
 
-		if (cb) {
-			error.type = OFONO_ERROR_TYPE_NO_ERROR;
-			error.error = 0;
-		}
+		/* If the deactivate was a result of a shutdown,
+		 * there won't be call back, so _deactivated()
+		 * needs to be called directly.
+		 */
+		if (cb)
+			CALLBACK_WITH_SUCCESS(cb, cbd->data);
+		else
+			ofono_gprs_context_deactivated(gc, gcd->active_ctx_cid);
+
 	} else {
 		ofono_error("%s: replay failure: %s",
 				__func__,
 				ril_error_to_string(message->error));
 
-		if (cb) {
-			error.type = OFONO_ERROR_TYPE_FAILURE;
-			error.error = message->error;
-		}
+		if (cb)
+			CALLBACK_WITH_FAILURE(cb, cbd->data);
 	}
-
-	if (cb)
-		cb(&error, cbd->data);
 }
 
 static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
@@ -324,7 +323,7 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 						ofono_gprs_context_cb_t cb, void *data)
 {
 	struct gprs_context_data *gcd = ofono_gprs_context_get_data(gc);
-	struct cb_data *cbd = cb_data_new(cb, data);
+	struct cb_data *cbd = NULL;
 	struct parcel rilp;
 	struct req_deactivate_data_call request;
 	struct ofono_error error;
@@ -333,6 +332,19 @@ static void ril_gprs_context_deactivate_primary(struct ofono_gprs_context *gc,
 
 	DBG("");
 
+	if (gcd->active_rild_cid == -1) {
+		set_context_disconnected(gcd);
+
+		if (cb) {
+			CALLBACK_WITH_SUCCESS(cb, data);
+			g_free(cbd);
+		}
+
+		return;
+	}
+
+
+	cbd = cb_data_new(cb, data);
 	cbd->user = gc;
 
 	gcd->state = STATE_DISABLING;
@@ -367,11 +379,11 @@ error:
 }
 
 static void ril_gprs_context_detach_shutdown(struct ofono_gprs_context *gc,
-					unsigned int id)
+						unsigned int id)
 {
-	DBG("");
+	DBG("cid: %d", id);
 
-	/* TODO: implement this!!! */
+	ril_gprs_context_deactivate_primary(gc, 0, NULL, NULL);
 }
 
 static int ril_gprs_context_probe(struct ofono_gprs_context *gc,
@@ -401,7 +413,7 @@ static void ril_gprs_context_remove(struct ofono_gprs_context *gc)
 	DBG("");
 
 	if (gcd->state != STATE_IDLE) {
-		/* TODO: call detach_shutdown */
+		ril_gprs_context_detach_shutdown(gc, 0);
 	}
 
 	ofono_gprs_context_set_data(gc, NULL);
