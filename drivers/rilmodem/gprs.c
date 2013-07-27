@@ -117,8 +117,12 @@ static void ril_gprs_set_attached(struct ofono_gprs *gprs, int attached,
 
 	decode_ril_error(&error, "OK");
 
-	/* This code should just call the callback with OK, and be done
-	 * there's no explicit RIL command to cause an attach.
+	/*
+	 * As RIL offers no actual control over the GPRS 'attached'
+	 * state, we save the desired state, and use it to override
+	 * the actual modem's state in the 'attached_status' function.
+	 * This is similar to the way the core ofono gprs code handles
+	 * data roaming ( see src/gprs.c gprs_netreg_update().
 	 *
 	 * The core gprs code calls driver->set_attached() when a netreg
 	 * notificaiton is received and any configured roaming conditions
@@ -171,6 +175,11 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 
 	gd->rild_status = status;
 
+	/*
+	 * Override the actual status based upon the desired
+	 * attached status set by the core GPRS code ( controlled
+	 * by the ConnnectionManager's 'Powered' property ).
+	 */
 	attached = (status == NETWORK_REGISTRATION_STATUS_REGISTERED ||
 			status == NETWORK_REGISTRATION_STATUS_ROAMING);
 
