@@ -49,9 +49,8 @@ void g_ril_reply_free_setup_data_call(struct reply_setup_data_call *reply)
 		g_strfreev(reply->dns_addresses);
 		g_strfreev(reply->gateways);
 		g_strfreev(reply->ip_addrs);
+		g_free(reply);
 	}
-
-	g_free(reply);
 }
 
 struct reply_setup_data_call *g_ril_reply_parse_data_call(GRil *gril,
