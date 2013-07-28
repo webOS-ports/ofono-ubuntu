@@ -64,9 +64,8 @@ static void free_data_call(gpointer data, gpointer user_data)
 		g_free(call->addresses);
 		g_free(call->dnses);
 		g_free(call->gateways);
+		g_free(call);
 	}
-
-	g_free(call);
 }
 
 void g_ril_unsol_free_data_call_list(struct unsol_data_call_list *unsol)
@@ -74,9 +73,8 @@ void g_ril_unsol_free_data_call_list(struct unsol_data_call_list *unsol)
 	if (unsol) {
 		g_slist_foreach(unsol->call_list, (GFunc) free_data_call, NULL);
 		g_slist_free(unsol->call_list);
+		g_free(unsol);
 	}
-
-	g_free(unsol);
 }
 
 struct unsol_data_call_list *g_ril_unsol_parse_data_call_list(GRil *gril,

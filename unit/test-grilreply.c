@@ -53,14 +53,14 @@ static const struct ril_msg reply_data_call_invalid_1 = {
  * {version=2,num=2 [status=0,retry=-1,cid=0,active=2,type=IP}
  * Parcel is truncated, as num=2 should trigger a failure.
  */
-static const guchar reply_data_call_invalid_parcel1[36] = {
+static const guchar reply_data_call_invalid_parcel2[36] = {
 	0x07, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0x02, 0x00, 0x00, 0x00, 0x49, 0x00, 0x50, 0x00,	0x00, 0x00, 0x00, 0x00
 };
 
 static const struct ril_msg reply_data_call_invalid_2 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel1,
+	.buf = (gchar *) &reply_data_call_invalid_parcel2,
 	.buf_len = 36,
 };
 
@@ -73,7 +73,7 @@ static const struct ril_msg reply_data_call_invalid_2 = {
  * ifname=rmnet_usb0,address=10.181.235.154/30,
  * dns=172.16.145.103 172.16.145.103,gateways=10.181.235.153]}
  */
-static const guchar reply_data_call_invalid_parcel2[196] = {
+static const guchar reply_data_call_invalid_parcel3[196] = {
 	0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,
@@ -94,7 +94,7 @@ static const guchar reply_data_call_invalid_parcel2[196] = {
 };
 
 static const struct ril_msg reply_data_call_invalid_3 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel2,
+	.buf = (gchar *) &reply_data_call_invalid_parcel3,
 	.buf_len = 196,
 };
 
@@ -107,7 +107,7 @@ static const struct ril_msg reply_data_call_invalid_3 = {
  * ifname=NULL,address=10.181.235.154/30,
  * dns=172.16.145.103 172.16.145.103,gateways=10.181.235.153]}
  */
-static const guchar reply_data_call_invalid_parcel3[190] = {
+static const guchar reply_data_call_invalid_parcel4[190] = {
 	0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0x02, 0x00, 0x00, 0x00, 0x49, 0x00, 0x50, 0x00,	0x00, 0x00, 0x00, 0x00,
@@ -126,7 +126,7 @@ static const guchar reply_data_call_invalid_parcel3[190] = {
 };
 
 static const struct ril_msg reply_data_call_invalid_4 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel3,
+	.buf = (gchar *) &reply_data_call_invalid_parcel4,
 	.buf_len = 190,
 };
 
@@ -139,7 +139,7 @@ static const struct ril_msg reply_data_call_invalid_4 = {
  * ifname=rmnet_usb0,address=NULL,
  * dns=172.16.145.103 172.16.145.103,gateways=10.181.235.153]}
  */
-static const guchar reply_data_call_invalid_parcel4[168] = {
+static const guchar reply_data_call_invalid_parcel5[168] = {
 	0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0x02, 0x00, 0x00, 0x00, 0x49, 0x00, 0x50, 0x00,	0x00, 0x00, 0x00, 0x00,
@@ -157,7 +157,7 @@ static const guchar reply_data_call_invalid_parcel4[168] = {
 };
 
 static const struct ril_msg reply_data_call_invalid_5 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel4,
+	.buf = (gchar *) &reply_data_call_invalid_parcel5,
 	.buf_len = 168,
 };
 
@@ -170,7 +170,7 @@ static const struct ril_msg reply_data_call_invalid_5 = {
  * ifname=rmnet_usb0,address=10.181.235.154/30,
  * dns=172.16.145.103 172.16.145.103,gateways=NULL]}
  */
-static const guchar reply_data_call_invalid_parcel5[180] = {
+static const guchar reply_data_call_invalid_parcel6[180] = {
 	0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0x02, 0x00, 0x00, 0x00, 0x49, 0x00, 0x50, 0x00,	0x00, 0x00, 0x00, 0x00,
@@ -189,7 +189,7 @@ static const guchar reply_data_call_invalid_parcel5[180] = {
 };
 
 static const struct ril_msg reply_data_call_invalid_6 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel5,
+	.buf = (gchar *) &reply_data_call_invalid_parcel6,
 	.buf_len = 180,
 };
 
@@ -202,7 +202,7 @@ static const struct ril_msg reply_data_call_invalid_6 = {
  * ifname=rmnet_usb0,address=10.181.235.154/30,
  * dns=NULL,gateways=10.181.235.153]}
  */
-static const guchar reply_data_call_invalid_parcel6[144] = {
+static const guchar reply_data_call_invalid_parcel7[144] = {
 	0x07, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0xff, 0xff, 0xff, 0xff,	0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
 	0x02, 0x00, 0x00, 0x00, 0x49, 0x00, 0x50, 0x00,	0x00, 0x00, 0x00, 0x00,
@@ -218,7 +218,7 @@ static const guchar reply_data_call_invalid_parcel6[144] = {
 };
 
 static const struct ril_msg reply_data_call_invalid_7 = {
-	.buf = (gchar *) &reply_data_call_invalid_parcel6,
+	.buf = (gchar *) &reply_data_call_invalid_parcel7,
 	.buf_len = 144,
 };
 
