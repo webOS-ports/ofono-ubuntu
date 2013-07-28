@@ -54,16 +54,6 @@ typedef void (*GRilResponseFunc)(struct ril_msg *message, gpointer user_data);
 
 typedef void (*GRilNotifyFunc)(struct ril_msg *message, gpointer user_data);
 
-#define OFONO_EINVAL(error) do {	       \
-	error->type = OFONO_ERROR_TYPE_FAILURE; \
-	error->error = -EINVAL;                 \
-} while (0)
-
-#define OFONO_NO_ERROR(error) do {	       \
-	error->type = OFONO_ERROR_TYPE_NO_ERROR; \
-	error->error = 0;                 \
-} while (0)
-
 /**
  * TRACE:
  * @fmt: format string
