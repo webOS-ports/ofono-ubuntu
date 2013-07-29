@@ -40,6 +40,7 @@
 #include "log.h"
 #include "ringbuffer.h"
 #include "gril.h"
+#include "grilutil.h"
 
 #define RIL_TRACE(ril, fmt, arg...) do {	\
 	if (ril->trace == TRUE)		        \
@@ -118,6 +119,9 @@ struct ril_reply {
 	guint32 serial_no;                      /* LE: used to match requests */
 	guint32 error_code;                     /* LE: */
 };
+
+#define RIL_PRINT_BUF_SIZE 8096
+char print_buf[RIL_PRINT_BUF_SIZE] __attribute__((used));
 
 static void ril_wakeup_writer(struct ril_s *ril);
 
@@ -240,7 +244,7 @@ static struct ril_request *ril_request_create(struct ril_s *ril,
 
 
 	DBG("req: %s, id: %d, data_len: %d",
-		ril_request_id_to_string(req), id, data_len);
+		ril_request_id_to_string(req), id, (int) data_len);
 
         /* RIL request: 8 byte header + data */
         len = 8 + data_len;
@@ -634,7 +638,9 @@ static gboolean can_write_data(gpointer data)
 
 	len = req->data_len;
 
-	DBG("len: %d, req_bytes_written: %d", len, ril->req_bytes_written);
+	DBG("len: %d, req_bytes_written: %d",
+		(int) len,
+		ril->req_bytes_written);
 
 	/* For some reason write watcher fired, but we've already
 	 * written the entire command out to the io channel,
@@ -810,8 +816,6 @@ static struct ril_s *create_ril()
 		return NULL;
         }
 
-	g_io_channel_set_buffered(io, FALSE);
-	g_io_channel_set_encoding(io, NULL, NULL);
 	g_io_channel_set_close_on_unref(io, TRUE);
 	g_io_channel_set_flags(io, G_IO_FLAG_NONBLOCK, NULL);
 
@@ -956,6 +960,15 @@ static gboolean ril_unregister(struct ril_s *ril, gboolean mark_only,
 	return FALSE;
 }
 
+void g_ril_init_parcel(struct ril_msg *message, struct parcel *rilp)
+{
+	/* Set up Parcel struct for proper parsing */
+	rilp->data = message->buf;
+	rilp->size = message->buf_len;
+	rilp->capacity = message->buf_len;
+	rilp->offset = 0;
+}
+
 GRil *g_ril_new()
 {
 	GRil *ril;
@@ -1022,7 +1035,7 @@ GRil *g_ril_ref(GRil *ril)
 	return ril;
 }
 
-guint g_ril_send(GRil *ril, const guint req, const char *data,
+guint g_ril_send(GRil *ril, const guint reqid, const char *data,
 			const gsize data_len, GRilResponseFunc func,
 			gpointer user_data, GDestroyNotify notify)
 {
@@ -1034,7 +1047,7 @@ guint g_ril_send(GRil *ril, const guint req, const char *data,
 
         p = ril->parent;
 
-	r = ril_request_create(p, ril->group, req, p->next_cmd_id,
+	r = ril_request_create(p, ril->group, reqid, p->next_cmd_id,
 				data, data_len, func,
 				user_data, notify, FALSE);
 	if (r == NULL)
