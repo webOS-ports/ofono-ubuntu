@@ -62,9 +62,9 @@
 
 struct gprs_data {
 	GRil *ril;
+	gboolean ofono_attached;
 	int max_cids;
-	int tech;
-	int status;
+	int rild_status;
 };
 
 static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
@@ -110,19 +110,25 @@ static void ril_gprs_set_attached(struct ofono_gprs *gprs, int attached,
 					ofono_gprs_cb_t cb, void *data)
 {
 	struct cb_data *cbd = cb_data_new(cb, data);
+	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct ofono_error error;
 
-	DBG("");
+	DBG("attached: %d", attached);
 
 	decode_ril_error(&error, "OK");
 
-	/* This code should just call the callback with OK, and be done
-	 * there's no explicit RIL command to cause an attach.
+	/*
+	 * As RIL offers no actual control over the GPRS 'attached'
+	 * state, we save the desired state, and use it to override
+	 * the actual modem's state in the 'attached_status' function.
+	 * This is similar to the way the core ofono gprs code handles
+	 * data roaming ( see src/gprs.c gprs_netreg_update().
 	 *
 	 * The core gprs code calls driver->set_attached() when a netreg
 	 * notificaiton is received and any configured roaming conditions
 	 * are met.
 	 */
+	gd->ofono_attached = attached;
 
 	cb(&error, cbd->data);
 	g_free(cbd);
@@ -135,6 +141,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	struct ofono_gprs *gprs = cbd->user;
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 	struct ofono_error error;
+	gboolean attached;
 	int status, lac, ci, tech;
 	int max_cids = 1;
 
@@ -157,7 +164,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if (gd->status == -1)
+	if (gd->rild_status == -1)
 		ofono_gprs_register(gprs);
 
 	if (max_cids > gd->max_cids) {
@@ -166,8 +173,20 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		ofono_gprs_set_cid_range(gprs, 1, max_cids);
 	}
 
-	gd->status = status;
-	gd->tech = tech;
+	gd->rild_status = status;
+
+	/*
+	 * Override the actual status based upon the desired
+	 * attached status set by the core GPRS code ( controlled
+	 * by the ConnnectionManager's 'Powered' property ).
+	 */
+	attached = (status == NETWORK_REGISTRATION_STATUS_REGISTERED ||
+			status == NETWORK_REGISTRATION_STATUS_ROAMING);
+
+	if (attached && gd->ofono_attached == FALSE) {
+		DBG("attached=true; ofono_attached=false; return !REGISTERED");
+		status = NETWORK_REGISTRATION_STATUS_NOT_REGISTERED;
+	}
 
 error:
 	if (cb)
@@ -208,8 +227,9 @@ static int ril_gprs_probe(struct ofono_gprs *gprs,
 		return -ENOMEM;
 
 	gd->ril = g_ril_clone(ril);
+	gd->ofono_attached = FALSE;
 	gd->max_cids = 0;
-	gd->status = -1;
+	gd->rild_status = -1;
 
 	ofono_gprs_set_data(gprs, gd);
 

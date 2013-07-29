@@ -1,3 +1,11 @@
+ofono (1.12phablet10) saucy; urgency=low
+
+  * [rilmodem] Fixed disable GPRS bug (LP:1204644).
+  * [gril/rilmodem] Re-factored RIL message code
+    and implemented related unit tests.
+
+ -- Tony Espy <espy@canonical.com>  Fri, 26 Jul 2013 15:32:52 -0400
+
 ofono (1.12phablet9) saucy; urgency=low
 
   * drivers/rilmodem/gprs.c: Fix roaming bug (LP: 1188404).
