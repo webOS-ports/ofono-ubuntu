@@ -67,6 +67,25 @@ struct gprs_data {
 	int rild_status;
 };
 
+static void ril_gprs_registration_status(struct ofono_gprs *gprs,
+					ofono_gprs_status_cb_t cb,
+					void *data);
+
+static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
+{
+	struct ofono_gprs *gprs = user_data;
+	struct gprs_data *gd = ofono_gprs_get_data(gprs);
+
+	g_assert(message->req == RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED);
+
+	/*
+	 * We are just want to track network data status change if ofono
+	 * itself is attached, so we avoid unnecessary data state requests.
+	 */
+	if (gd->ofono_attached == TRUE)
+		ril_gprs_registration_status(gprs, NULL, NULL);
+}
+
 static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
 						gpointer user_data)
 {
@@ -164,13 +183,23 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		goto error;
 	}
 
-	if (gd->rild_status == -1)
+	if (gd->rild_status == -1) {
 		ofono_gprs_register(gprs);
+
+		/* RILD tracks data network state together with voice */
+		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
+				ril_gprs_state_change, gprs);
+	}
 
 	if (max_cids > gd->max_cids) {
 		DBG("Setting max cids to %d", max_cids);
 		gd->max_cids = max_cids;
 		ofono_gprs_set_cid_range(gprs, 1, max_cids);
+	}
+
+	/* Just need to notify ofono if it's already attached */
+	if (gd->ofono_attached && (gd->rild_status != status)) {
+		ofono_gprs_status_notify(gprs, status);
 	}
 
 	gd->rild_status = status;

@@ -1,3 +1,10 @@
+ofono (1.12phablet11) saucy; urgency=low
+
+  * drivers/rilmodem/gprs.c: adding data network state tracking back, but
+    handling it better to avoid the roaming bug
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Tue, 30 Jul 2013 12:54:37 -0300
+
 ofono (1.12phablet10) saucy; urgency=low
 
   * [rilmodem] Fixed disable GPRS bug (LP:1204644).
