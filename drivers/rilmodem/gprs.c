@@ -76,14 +76,12 @@ static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 	struct ofono_gprs *gprs = user_data;
 	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 
-	if (message->req != RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED) {
-		ofono_error("Invalid unsolicited message received %d",
-				message->req);
-		return;
-	}
+	g_assert(message->req == RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED);
 
-	/* Just interested to track network data status change if ofono itself
-	 * is attached, so we avoid unnecessary data state requests. */
+	/*
+	 * We are just want to track network data status change if ofono
+	 * itself is attached, so we avoid unnecessary data state requests.
+	 */
 	if (gd->ofono_attached == TRUE)
 		ril_gprs_registration_status(gprs, NULL, NULL);
 }
@@ -188,7 +186,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 	if (gd->rild_status == -1) {
 		ofono_gprs_register(gprs);
 
-		/* rild tracks data network state together with voice */
+		/* RILD tracks data network state together with voice */
 		g_ril_register(gd->ril, RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED,
 				ril_gprs_state_change, gprs);
 	}
@@ -199,7 +197,7 @@ static void ril_data_reg_cb(struct ril_msg *message, gpointer user_data)
 		ofono_gprs_set_cid_range(gprs, 1, max_cids);
 	}
 
-	/* just need to notify ofono if it's already attached */
+	/* Just need to notify ofono if it's already attached */
 	if (gd->ofono_attached && (gd->rild_status != status)) {
 		ofono_gprs_status_notify(gprs, status);
 	}
