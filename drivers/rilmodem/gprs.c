@@ -74,6 +74,7 @@ static void ril_gprs_registration_status(struct ofono_gprs *gprs,
 static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 {
 	struct ofono_gprs *gprs = user_data;
+	struct gprs_data *gd = ofono_gprs_get_data(gprs);
 
 	if (message->req != RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED) {
 		ofono_error("Invalid unsolicited message received %d",
@@ -81,7 +82,10 @@ static void ril_gprs_state_change(struct ril_msg *message, gpointer user_data)
 		return;
 	}
 
-	ril_gprs_registration_status(gprs, NULL, NULL);
+	/* Just interested to track network data status change if ofono itself
+	 * is attached, so we avoid unnecessary data state requests. */
+	if (gd->ofono_attached == TRUE)
+		ril_gprs_registration_status(gprs, NULL, NULL);
 }
 
 static void ril_gprs_set_pref_network_cb(struct ril_msg *message,
