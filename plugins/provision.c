@@ -102,7 +102,7 @@ static int provision_get_settings(const char *mcc, const char *mnc,
 		DBG("Username: '%s'", ap->username);
 		DBG("Password: '%s'", ap->password);
 
-		if (i = 0)
+		if (i == 0)
 			memcpy(*settings + i, ap,
 				sizeof(struct ofono_gprs_provision_data));
 
