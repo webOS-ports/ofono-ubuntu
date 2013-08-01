@@ -69,6 +69,16 @@ static int provision_get_settings(const char *mcc, const char *mnc,
 
 	DBG("Found %d APs", ap_count);
 
+	/*
+	 * Only keep the first APN found.
+	 *
+	 * This allows auto-provisioning to work most of the time vs.
+	 * passing FALSE to mbpi_lookup_apn() which would return an
+	 * an empty list if duplicates are found.
+	 */
+	if ( ap_count > 1)
+		ap_count = 1;
+
 	*settings = g_try_new0(struct ofono_gprs_provision_data, ap_count);
 	if (*settings == NULL) {
 		ofono_error("Provisioning failed: %s", g_strerror(errno));
@@ -92,8 +102,9 @@ static int provision_get_settings(const char *mcc, const char *mnc,
 		DBG("Username: '%s'", ap->username);
 		DBG("Password: '%s'", ap->password);
 
-		memcpy(*settings + i, ap,
-			sizeof(struct ofono_gprs_provision_data));
+		if (i = 0)
+			memcpy(*settings + i, ap,
+				sizeof(struct ofono_gprs_provision_data));
 
 		g_free(ap);
 	}
