@@ -1,3 +1,10 @@
+ofono (1.12phablet12) saucy; urgency=low
+
+  * plugins/provision.c: if multiple "internet" data contexts
+    are found, only provision the first (LP:1204683).
+
+ -- Tony Espy <espy@canonical.com>  Thu, 01 Aug 2013 12:13:37 -0400
+
 ofono (1.12phablet11) saucy; urgency=low
 
   * drivers/rilmodem/gprs.c: adding data network state tracking back, but
