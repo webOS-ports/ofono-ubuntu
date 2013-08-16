@@ -1,3 +1,69 @@
+ofono (1.12phablet12) saucy; urgency=low
+
+  * plugins/provision.c: if multiple "internet" data contexts
+    are found, only provision the first (LP:1204683).
+
+ -- Tony Espy <espy@canonical.com>  Thu, 01 Aug 2013 12:13:37 -0400
+
+ofono (1.12phablet11) saucy; urgency=low
+
+  * drivers/rilmodem/gprs.c: adding data network state tracking back, but
+    handling it better to avoid the roaming bug
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Tue, 30 Jul 2013 12:54:37 -0300
+
+ofono (1.12phablet10) saucy; urgency=low
+
+  * [rilmodem] Fixed disable GPRS bug (LP:1204644).
+  * [gril/rilmodem] Re-factored RIL message code
+    and implemented related unit tests.
+
+ -- Tony Espy <espy@canonical.com>  Fri, 26 Jul 2013 15:32:52 -0400
+
+ofono (1.12phablet9) saucy; urgency=low
+
+  * drivers/rilmodem/gprs.c: Fix roaming bug (LP: 1188404).
+
+ -- Tony Espy <espy@canonical.com>  Fri, 12 Jul 2013 20:38:32 -0400
+
+ofono (1.12phablet8) saucy; urgency=low
+
+  * [rilmodem] Added SIM PIN/PUK support.  This is
+    based on code from Jolla:
+    https://github.com/nemomobile-packages/ofono
+
+ -- Tony Espy <espy@canonical.com>  Mon, 08 Jul 2013 13:08:32 -0400
+
+ofono (1.12phablet7) saucy; urgency=low
+
+  [ Tony Espy ]
+  * gril/gril.c: Exit on RILD socket failures.
+
+  [ Petri M. Gerdt <petri.gerdt@jollamobile.com> ]
+  * plugins/nettime.c: Added nettime plugin.
+
+ -- Tony Espy <espy@canonical.com>  Tue, 25 Jun 2013 15:14:13 -0400
+
+ofono (1.12phablet6) saucy; urgency=low
+
+  * [ril/rilmodem] Add real calls for revision and IMEI probe
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Tue, 25 Jun 2013 02:46:40 -0300
+
+ofono (1.12phablet5) saucy; urgency=low
+
+  * plugins/ril.c: Delay modem initialization until RIL_CONNECTED
+    is received, and add GET_SIM_STATUS retry logic (LP: #1187031).
+  * [ril/rilmodem] Add high level RIL message tracing.
+
+ -- Tony Espy <espy@canonical.com>  Mon, 17 Jun 2013 13:36:05 -0400
+
+ofono (1.12phablet4) saucy; urgency=low
+
+  * Building for saucy.
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Mon, 03 Jun 2013 18:54:52 -0300
+
 ofono (1.12phablet3) raring; urgency=low
 
   [ Tony Espy ]
